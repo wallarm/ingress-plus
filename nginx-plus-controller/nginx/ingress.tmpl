@@ -1,0 +1,32 @@
+{{range $upstream := .Upstreams}}
+upstream {{$upstream.Name}} {
+	zone {{$upstream.Name}} 64k;
+	{{range $server := $upstream.UpstreamServers}}
+	server {{$server.Address}}:{{$server.Port}} resolve;{{end}}
+}{{end}}
+
+{{range $server := .Servers}}
+server {
+	listen 80;
+	{{if $server.SSL}}
+	listen 443 ssl;
+	ssl_certificate {{$server.SSLCertificate}};
+	ssl_certificate_key {{$server.SSLCertificateKey}};
+	{{end}}
+
+	status_zone {{$server.Name}};
+
+  server_name {{$server.Name}};
+
+	{{if $server.SSL}}
+	if ($scheme = http) {
+		return 301 https://$host$request_uri;
+	}
+	{{end}}
+
+	{{range $location := $server.Locations}}
+  location {{$location.Path}} {
+    proxy_set_header Host $host;
+    proxy_pass http://{{$location.Upstream.Name}};
+  }{{end}}
+}{{end}}
