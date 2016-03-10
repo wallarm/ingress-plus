@@ -3,9 +3,9 @@
 ## Prerequisites
 
 * Kubernetes 1.2 (TSL support for Ingress has been added in 1.2)
-* You've built and made available in your cluster [NGINX](https://github.com/nginxinc/kubernetes-ingress/tree/master/nginx-controller)
-or [NGINX Plus](https://github.com/nginxinc/kubernetes-ingress/tree/master/nginx-plus-controller) Controller images and changed
-the container image field in ```nginx-ingress-rc.yaml``` or ```nginx-plus-ingress-rc.yaml``` files accordingly.
+* For NGINX Plus: you've built and made available in your cluster
+[NGINX Plus](https://github.com/nginxinc/kubernetes-ingress/tree/master/nginx-plus-controller) Controller
+image and updated the container image field in the ```nginx-plus-ingress-rc.yaml``` file accordingly.
 
 ## Running the examples
 
