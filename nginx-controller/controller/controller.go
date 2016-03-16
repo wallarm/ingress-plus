@@ -262,7 +262,7 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 		}
 	}
 
-	var upstreams []nginx.Upstream
+	upstreams := make(map[string]nginx.Upstream)
 
 	for _, rule := range ing.Spec.Rules {
 		if rule.IngressRuleValue.HTTP == nil {
@@ -270,7 +270,10 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 		}
 
 		for _, path := range rule.HTTP.Paths {
-			name := ing.Name + "-" + path.Backend.ServiceName
+			name := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
+			if _, exists := upstreams[name]; exists {
+				continue
+			}
 			ups := nginx.NewUpstreamWithDefaultServer(name)
 
 			svcKey := ing.Namespace + "/" + path.Backend.ServiceName
@@ -296,8 +299,8 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 					}
 				}
 			}
+			upstreams[name] = ups
 
-			upstreams = append(upstreams, ups)
 		}
 	}
 
@@ -315,21 +318,19 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 
 		for _, path := range rule.HTTP.Paths {
 			loc := nginx.Location{Path: path.Path}
-			upsName := ing.GetName() + "-" + path.Backend.ServiceName
+			upsName := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
 
-			for _, ups := range upstreams {
-				if upsName == ups.Name {
-					loc.Upstream = ups
-				}
+			if ups, ok := upstreams[upsName]; ok {
+				loc.Upstream = ups
+				locations = append(locations, loc)
 			}
-			locations = append(locations, loc)
 		}
 
 		server.Locations = locations
 		servers = append(servers, server)
 	}
 
-	lbc.nginx.AddOrUpdateIngress(name, nginx.IngressNGINXConfig{Upstreams: upstreams, Servers: servers})
+	lbc.nginx.AddOrUpdateIngress(name, nginx.IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers})
 }
 
 func endpointsToUpstreamServers(endps api.Endpoints, servicePort int) []nginx.UpstreamServer {
@@ -347,4 +348,19 @@ func endpointsToUpstreamServers(endps api.Endpoints, servicePort int) []nginx.Up
 	}
 
 	return upsServers
+}
+
+func getNameForUpstream(ing *extensions.Ingress, host string, service string) string {
+	return fmt.Sprintf("%v-%v-%v-%v", ing.Namespace, ing.Name, host, service)
+}
+
+func upstreamMapToSlice(upstreams map[string]nginx.Upstream) []nginx.Upstream {
+	result := make([]nginx.Upstream, 0, len(upstreams))
+
+	for _, ups := range upstreams {
+		glog.Info(ups)
+		result = append(result, ups)
+	}
+
+	return result
 }
