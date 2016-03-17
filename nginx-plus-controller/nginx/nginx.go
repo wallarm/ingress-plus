@@ -149,11 +149,16 @@ func (nginx *NGINXController) AddOrUpdateCertAndKey(name string, cert string, ke
 		}
 		defer pem.Close()
 
-		_, err = pem.WriteString(string(key))
+		_, err = pem.WriteString(key)
 		if err != nil {
 			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
 		}
-		_, err = pem.WriteString(string(cert))
+
+		_, err = pem.WriteString("\n")
+		if err != nil {
+			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
+		}
+		_, err = pem.WriteString(cert)
 		if err != nil {
 			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
 		}
