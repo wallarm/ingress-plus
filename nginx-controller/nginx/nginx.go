@@ -199,8 +199,8 @@ func shellOut(cmd string) {
 	err = command.Wait()
 	if err != nil {
 		if glog.V(2) {
-			glog.Errorf("Command %v stdout: %q", stdout.String())
-			glog.Errorf("Command %v stderr: %q", stderr.String())
+			glog.Errorf("Command %v stdout: %q", cmd, stdout.String())
+			glog.Errorf("Command %v stderr: %q", cmd, stderr.String())
 		}
 		glog.Fatalf("Command %v finished with error: %v", cmd, err)
 	}
