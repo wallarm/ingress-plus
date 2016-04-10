@@ -317,7 +317,7 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 		var locations []nginx.Location
 
 		for _, path := range rule.HTTP.Paths {
-			loc := nginx.Location{Path: path.Path}
+			loc := nginx.Location{Path: pathOrDefault(path.Path)}
 			upsName := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
 
 			if ups, ok := upstreams[upsName]; ok {
@@ -331,6 +331,14 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 	}
 
 	lbc.nginx.AddOrUpdateIngress(name, nginx.IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers})
+}
+
+func pathOrDefault(path string) string {
+	if path == "" {
+		return "/"
+	} else {
+		return path
+	}
 }
 
 func endpointsToUpstreamServers(endps api.Endpoints, servicePort int) []nginx.UpstreamServer {
