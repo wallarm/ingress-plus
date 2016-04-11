@@ -6,7 +6,7 @@ import (
 
 func TestPathOrDefaultReturnDefault(t *testing.T) {
 	path := ""
-	expected = "/"
+	expected := "/"
 	if pathOrDefault(path) != expected {
 		t.Errorf("pathOrDefault(%q) should return %q", path, expected)
 	}
