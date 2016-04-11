@@ -187,10 +187,9 @@ func shellOut(cmd string) {
 	glog.Infof("executing %s", cmd)
 
 	command := exec.Command("sh", "-c", cmd)
-	if glog.V(2) {
-		command.Stdout = &stdout
-		command.Stderr = &stderr
-	}
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+
 	err := command.Start()
 	if err != nil {
 		glog.Fatalf("Failed to execute %v, err: %v", cmd, err)
@@ -198,10 +197,8 @@ func shellOut(cmd string) {
 
 	err = command.Wait()
 	if err != nil {
-		if glog.V(2) {
-			glog.Errorf("Command %v stdout: %q", cmd, stdout.String())
-			glog.Errorf("Command %v stderr: %q", cmd, stderr.String())
-		}
+		glog.Errorf("Command %v stdout: %q", cmd, stdout.String())
+		glog.Errorf("Command %v stderr: %q", cmd, stderr.String())
 		glog.Fatalf("Command %v finished with error: %v", cmd, err)
 	}
 }
