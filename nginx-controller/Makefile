@@ -6,7 +6,10 @@ PREFIX = nginxdemos/nginx-ingress
 nginx-ingress:
 	CGO_ENABLED=0 GOOS=linux godep go build -a -installsuffix cgo -ldflags '-w' -o nginx-ingress *.go
 
-container: nginx-ingress
+test:
+	godep go test ./...
+
+container: nginx-ingress test
 	docker build -t $(PREFIX):$(TAG) .
 
 push: container
