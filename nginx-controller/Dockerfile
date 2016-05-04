@@ -20,6 +20,11 @@ RUN apt-key adv --keyserver hkp://pgp.mit.edu:80 --recv-keys 573BFD6B3D8FBC64107
 
 EXPOSE 80 443
 
+# forward nginx access and error logs to stdout and stderr of the ingress
+# controller process
+RUN ln -sf /proc/1/fd/1 /var/log/nginx/access.log \
+	&& ln -sf /proc/1/fd/2 /var/log/nginx/error.log
+
 COPY nginx-ingress /
 COPY nginx/ingress.tmpl /
 
