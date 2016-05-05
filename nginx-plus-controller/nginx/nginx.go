@@ -20,6 +20,7 @@ const statusAPIConf = `server {
     }
 
     location /status {
+        access_log off;
         status;
     }
 }`
