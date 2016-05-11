@@ -1,6 +1,6 @@
 all: push
 
-TAG = 0.1
+TAG = 0.2
 PREFIX = nginxdemos/nginx-ingress
 
 nginx-ingress:
