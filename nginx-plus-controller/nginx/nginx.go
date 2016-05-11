@@ -54,6 +54,7 @@ type UpstreamServer struct {
 // Server describes an NGINX server
 type Server struct {
 	Name              string
+	StatusZone        string
 	Locations         []Location
 	SSL               bool
 	SSLCertificate    string
