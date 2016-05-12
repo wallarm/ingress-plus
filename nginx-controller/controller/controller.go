@@ -49,6 +49,10 @@ type LoadBalancerController struct {
 	nginx          *nginx.NGINXController
 }
 
+const (
+	emptyHost = ""
+)
+
 var keyFunc = framework.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
@@ -203,7 +207,11 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 		lbc.nginx.DeleteIngress(name)
 	} else {
 		ing := obj.(*extensions.Ingress)
-		lbc.updateNGINX(name, ing)
+
+		pems := lbc.updateCertificates(ing)
+
+		nginxCfg := lbc.generateNGINXCfg(ing, pems)
+		lbc.nginx.AddOrUpdateIngress(name, nginxCfg)
 	}
 
 	lbc.nginx.Reload()
@@ -234,7 +242,7 @@ func (lbc *LoadBalancerController) enqueueIngressForEndpoints(obj interface{}) {
 	}
 }
 
-func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingress) {
+func (lbc *LoadBalancerController) updateCertificates(ing *extensions.Ingress) map[string]string {
 	pems := make(map[string]string)
 
 	for _, tls := range ing.Spec.TLS {
@@ -260,55 +268,79 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 		for _, host := range tls.Hosts {
 			pems[host] = pemFileName
 		}
+		if len(tls.Hosts) == 0 {
+			pems[emptyHost] = pemFileName
+		}
 	}
 
+	return pems
+}
+
+func (lbc *LoadBalancerController) generateNGINXCfg(ing *extensions.Ingress, pems map[string]string) nginx.IngressNGINXConfig {
 	upstreams := make(map[string]nginx.Upstream)
+
+	if ing.Spec.Backend != nil {
+		name := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
+		upstream := lbc.createUpstream(name, ing.Spec.Backend, ing.Namespace)
+		upstreams[name] = upstream
+	}
+
+	var servers []nginx.Server
 
 	for _, rule := range ing.Spec.Rules {
 		if rule.IngressRuleValue.HTTP == nil {
 			continue
 		}
 
-		for _, path := range rule.HTTP.Paths {
-			name := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
-			if _, exists := upstreams[name]; exists {
-				continue
-			}
-			ups := nginx.NewUpstreamWithDefaultServer(name)
+		serverName := rule.Host
 
-			svcKey := ing.Namespace + "/" + path.Backend.ServiceName
-			svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
-			if err != nil {
-				glog.Infof("error getting service %v from the cache: %v", svcKey, err)
-			} else {
-				if svcExists {
-					svc := svcObj.(*api.Service)
-					if svc.Spec.ClusterIP != "None" && svc.Spec.ClusterIP != "" {
-						upsServer := nginx.UpstreamServer{Address: svc.Spec.ClusterIP, Port: path.Backend.ServicePort.String()}
-						ups.UpstreamServers = []nginx.UpstreamServer{upsServer}
-					} else if svc.Spec.ClusterIP == "None" {
-						endps, err := lbc.endpLister.GetServiceEndpoints(svc)
-						if err != nil {
-							glog.Infof("error getting endpoints for service %v from the cache: %v", svc, err)
-						} else {
-							upsServers := endpointsToUpstreamServers(endps, path.Backend.ServicePort.IntValue())
-							if len(upsServers) > 0 {
-								ups.UpstreamServers = upsServers
-							}
-						}
-					}
-				}
-			}
-			upstreams[name] = ups
-
+		if rule.Host == emptyHost {
+			glog.Warningf("Host field of ingress rule in %v/%v is empty", ing.Namespace, ing.Name)
 		}
+
+		server := nginx.Server{Name: serverName}
+
+		if pemFile, ok := pems[serverName]; ok {
+			server.SSL = true
+			server.SSLCertificate = pemFile
+			server.SSLCertificateKey = pemFile
+		}
+
+		var locations []nginx.Location
+		rootLocation := false
+
+		for _, path := range rule.HTTP.Paths {
+			upsName := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
+
+			if _, exists := upstreams[upsName]; !exists {
+				upstream := lbc.createUpstream(upsName, &path.Backend, ing.Namespace)
+				upstreams[upsName] = upstream
+			}
+			loc := nginx.Location{Path: pathOrDefault(path.Path)}
+
+			loc.Upstream = upstreams[upsName]
+			locations = append(locations, loc)
+
+			if loc.Path == "/" {
+				rootLocation = true
+			}
+		}
+
+		if rootLocation == false && ing.Spec.Backend != nil {
+			upsName := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
+			loc := nginx.Location{Path: pathOrDefault("/")}
+			loc.Upstream = upstreams[upsName]
+			locations = append(locations, loc)
+		}
+
+		server.Locations = locations
+		servers = append(servers, server)
 	}
 
-	var servers []nginx.Server
-	for _, rule := range ing.Spec.Rules {
-		server := nginx.Server{Name: rule.Host}
+	if len(ing.Spec.Rules) == 0 && ing.Spec.Backend != nil {
+		server := nginx.Server{Name: emptyHost}
 
-		if pemFile, ok := pems[rule.Host]; ok {
+		if pemFile, ok := pems[emptyHost]; ok {
 			server.SSL = true
 			server.SSLCertificate = pemFile
 			server.SSLCertificateKey = pemFile
@@ -316,21 +348,47 @@ func (lbc *LoadBalancerController) updateNGINX(name string, ing *extensions.Ingr
 
 		var locations []nginx.Location
 
-		for _, path := range rule.HTTP.Paths {
-			loc := nginx.Location{Path: pathOrDefault(path.Path)}
-			upsName := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
+		upsName := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
 
-			if ups, ok := upstreams[upsName]; ok {
-				loc.Upstream = ups
-				locations = append(locations, loc)
-			}
-		}
+		loc := nginx.Location{Path: "/"}
+		loc.Upstream = upstreams[upsName]
+		locations = append(locations, loc)
 
 		server.Locations = locations
 		servers = append(servers, server)
 	}
 
-	lbc.nginx.AddOrUpdateIngress(name, nginx.IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers})
+	return nginx.IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers}
+}
+
+func (lbc *LoadBalancerController) createUpstream(name string, backend *extensions.IngressBackend, namespace string) nginx.Upstream {
+	ups := nginx.NewUpstreamWithDefaultServer(name)
+
+	svcKey := namespace + "/" + backend.ServiceName
+	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
+	if err != nil {
+		glog.Infof("error getting service %v from the cache: %v", svcKey, err)
+	} else {
+		if svcExists {
+			svc := svcObj.(*api.Service)
+			if svc.Spec.ClusterIP != "None" && svc.Spec.ClusterIP != "" {
+				upsServer := nginx.UpstreamServer{Address: svc.Spec.ClusterIP, Port: backend.ServicePort.String()}
+				ups.UpstreamServers = []nginx.UpstreamServer{upsServer}
+			} else if svc.Spec.ClusterIP == "None" {
+				endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+				if err != nil {
+					glog.Infof("error getting endpoints for service %v from the cache: %v", svc, err)
+				} else {
+					upsServers := endpointsToUpstreamServers(endps, backend.ServicePort.IntValue())
+					if len(upsServers) > 0 {
+						ups.UpstreamServers = upsServers
+					}
+				}
+			}
+		}
+	}
+
+	return ups
 }
 
 func pathOrDefault(path string) string {

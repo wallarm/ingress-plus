@@ -13,7 +13,9 @@ server {
 	ssl_certificate_key {{$server.SSLCertificateKey}};
 	{{end}}
 
-  server_name {{$server.Name}};
+	{{if $server.Name}}
+	server_name {{$server.Name}};
+	{{end}}
 
 	{{if $server.SSL}}
 	if ($scheme = http) {
@@ -22,13 +24,13 @@ server {
 	{{end}}
 
 	{{range $location := $server.Locations}}
-  location {{$location.Path}} {
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_pass http://{{$location.Upstream.Name}};
-  }{{end}}
+	location {{$location.Path}} {
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Host $host;
+		proxy_set_header X-Forwarded-Port $server_port;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_pass http://{{$location.Upstream.Name}};
+	}{{end}}
 }{{end}}
