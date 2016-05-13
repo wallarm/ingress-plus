@@ -12,7 +12,6 @@ import (
 
 // NGINXController Updates NGINX configuration, starts and reloads NGINX
 type NGINXController struct {
-	resolver       string
 	nginxConfdPath string
 	nginxCertsPath string
 	local          bool
@@ -62,9 +61,8 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 }
 
 // NewNGINXController creates a NGINX controller
-func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGINXController, error) {
+func NewNGINXController(nginxConfPath string, local bool) (*NGINXController, error) {
 	ngxc := NGINXController{
-		resolver:       resolver,
 		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
 		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
 		local:          local,
