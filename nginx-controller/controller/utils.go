@@ -48,7 +48,7 @@ func (t *taskQueue) run(period time.Duration, stopCh <-chan struct{}) {
 func (t *taskQueue) enqueue(obj interface{}) {
 	key, err := keyFunc(obj)
 	if err != nil {
-		glog.Infof("Couldn't get key for object %+v: %v", obj, err)
+		glog.V(3).Infof("Couldn't get key for object %+v: %v", obj, err)
 		return
 	}
 	t.queue.Add(key)
@@ -67,7 +67,7 @@ func (t *taskQueue) worker() {
 			close(t.workerDone)
 			return
 		}
-		glog.Infof("Syncing %v", key)
+		glog.V(3).Infof("Syncing %v", key)
 		t.sync(key.(string))
 		t.queue.Done(key)
 	}

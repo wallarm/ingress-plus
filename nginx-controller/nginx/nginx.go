@@ -81,7 +81,7 @@ func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGI
 // specified ingress from NGINX conf directory
 func (nginx *NGINXController) DeleteIngress(name string) {
 	filename := nginx.getIngressNGINXConfigFileName(name)
-	glog.Infof("deleting %v", filename)
+	glog.V(3).Infof("deleting %v", filename)
 
 	if !nginx.local {
 		if err := os.Remove(filename); err != nil {
@@ -93,7 +93,7 @@ func (nginx *NGINXController) DeleteIngress(name string) {
 // AddOrUpdateIngress creates or updates a file with
 // the specified configuration for the specified ingress
 func (nginx *NGINXController) AddOrUpdateIngress(name string, config IngressNGINXConfig) {
-	glog.Infof("Updating NGINX configuration")
+	glog.V(3).Infof("Updating NGINX configuration")
 	filename := nginx.getIngressNGINXConfigFileName(name)
 	nginx.templateIt(config, filename)
 }
@@ -139,9 +139,11 @@ func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename str
 		glog.Fatal("Failed to parse template file")
 	}
 
-	glog.Infof("Writing NGINX conf to %v", filename)
+	glog.V(3).Infof("Writing NGINX conf to %v", filename)
 
-	tmpl.Execute(os.Stdout, config)
+	if glog.V(3) {
+		tmpl.Execute(os.Stdout, config)
+	}
 
 	if !nginx.local {
 		w, err := os.Create(filename)
@@ -157,7 +159,7 @@ func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename str
 		// print conf to stdout here
 	}
 
-	glog.Infof("NGINX configuration file had been updated")
+	glog.V(3).Infof("NGINX configuration file had been updated")
 }
 
 // Reload reloads NGINX
@@ -184,7 +186,7 @@ func shellOut(cmd string) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	glog.Infof("executing %s", cmd)
+	glog.V(3).Infof("executing %s", cmd)
 
 	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
