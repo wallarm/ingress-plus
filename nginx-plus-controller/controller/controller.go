@@ -64,17 +64,17 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	ingHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
-			glog.Infof("Adding Ingress: %v", addIng.Name)
+			glog.V(3).Infof("Adding Ingress: %v", addIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remIng := obj.(*extensions.Ingress)
-			glog.Infof("Removing Ingress: %v", remIng.Name)
+			glog.V(3).Infof("Removing Ingress: %v", remIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				glog.Infof("Ingress %v changed, syncing",
+				glog.V(3).Infof("Ingress %v changed, syncing",
 					cur.(*extensions.Ingress).Name)
 				lbc.ingQueue.enqueue(cur)
 			}
@@ -110,7 +110,7 @@ func ingressWatchFunc(c *client.Client, ns string) func(options api.ListOptions)
 }
 
 func (lbc *LoadBalancerController) syncIng(key string) {
-	glog.Infof("Syncing %v", key)
+	glog.V(3).Infof("Syncing %v", key)
 
 	obj, ingExists, err := lbc.ingLister.Store.GetByKey(key)
 	if err != nil {
@@ -122,8 +122,11 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 	name := strings.Replace(key, "/", "-", -1)
 
 	if !ingExists {
+		glog.V(2).Infof("Deleting Ingress: %v\n", key)
 		lbc.nginx.DeleteIngress(name)
 	} else {
+		glog.V(2).Infof("Adding or Updating Ingress: %v\n", key)
+
 		ing := obj.(*extensions.Ingress)
 
 		pems := lbc.updateCertificates(ing)
@@ -285,7 +288,6 @@ func upstreamMapToSlice(upstreams map[string]nginx.Upstream) []nginx.Upstream {
 	result := make([]nginx.Upstream, 0, len(upstreams))
 
 	for _, ups := range upstreams {
-		glog.Info(ups)
 		result = append(result, ups)
 	}
 

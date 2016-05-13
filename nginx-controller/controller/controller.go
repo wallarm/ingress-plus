@@ -68,17 +68,17 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	ingHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
-			glog.Infof("Adding Ingress: %v", addIng.Name)
+			glog.V(3).Infof("Adding Ingress: %v", addIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remIng := obj.(*extensions.Ingress)
-			glog.Infof("Removing Ingress: %v", remIng.Name)
+			glog.V(3).Infof("Removing Ingress: %v", remIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				glog.Infof("Ingress %v changed, syncing",
+				glog.V(3).Infof("Ingress %v changed, syncing",
 					cur.(*extensions.Ingress).Name)
 				lbc.ingQueue.enqueue(cur)
 			}
@@ -94,17 +94,17 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	svcHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addSvc := obj.(*api.Service)
-			glog.Infof("Adding service: %v", addSvc.Name)
+			glog.V(3).Infof("Adding service: %v", addSvc.Name)
 			lbc.enqueueIngressForService(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remSvc := obj.(*api.Service)
-			glog.Infof("Removing service: %v", remSvc.Name)
+			glog.V(3).Infof("Removing service: %v", remSvc.Name)
 			lbc.enqueueIngressForService(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				glog.Infof("Service %v changed, syncing",
+				glog.V(3).Infof("Service %v changed, syncing",
 					cur.(*api.Service).Name)
 				lbc.enqueueIngressForService(cur)
 			}
@@ -120,17 +120,17 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	endpHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addEndp := obj.(*api.Endpoints)
-			glog.Infof("Adding endpoints: %v", addEndp.Name)
+			glog.V(3).Infof("Adding endpoints: %v", addEndp.Name)
 			lbc.enqueueIngressForEndpoints(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remEndp := obj.(*api.Endpoints)
-			glog.Infof("Removing endpoints: %v", remEndp.Name)
+			glog.V(3).Infof("Removing endpoints: %v", remEndp.Name)
 			lbc.enqueueIngressForEndpoints(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				glog.Infof("Endpoints %v changed, syncing",
+				glog.V(3).Infof("Endpoints %v changed, syncing",
 					cur.(*api.Endpoints).Name)
 				lbc.enqueueIngressForEndpoints(cur)
 			}
@@ -192,7 +192,7 @@ func endpointsWatchFunc(c *client.Client, ns string) func(options api.ListOption
 }
 
 func (lbc *LoadBalancerController) syncIng(key string) {
-	glog.Infof("Syncing %v", key)
+	glog.V(3).Infof("Syncing %v", key)
 
 	obj, ingExists, err := lbc.ingLister.Store.GetByKey(key)
 	if err != nil {
@@ -204,8 +204,11 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 	name := strings.Replace(key, "/", "-", -1)
 
 	if !ingExists {
+		glog.V(2).Infof("Deleting Ingress: %v\n", key)
 		lbc.nginx.DeleteIngress(name)
 	} else {
+		glog.V(2).Infof("Adding or Updating Ingress: %v\n", key)
+
 		ing := obj.(*extensions.Ingress)
 
 		pems := lbc.updateCertificates(ing)
@@ -221,7 +224,7 @@ func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
 	svc := obj.(*api.Service)
 	ings, err := lbc.ingLister.GetServiceIngress(svc)
 	if err != nil {
-		glog.Infof("ignoring service %v: %v", svc.Name, err)
+		glog.V(3).Infof("ignoring service %v: %v", svc.Name, err)
 		return
 	}
 	for _, ing := range ings {
@@ -234,7 +237,7 @@ func (lbc *LoadBalancerController) enqueueIngressForEndpoints(obj interface{}) {
 	svcKey := endp.GetNamespace() + "/" + endp.GetName()
 	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
 	if err != nil {
-		glog.Infof("error getting service %v from the cache: %v\n", svcKey, err)
+		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
 	} else {
 		if svcExists && svcObj.(*api.Service).Spec.ClusterIP == "None" {
 			lbc.enqueueIngressForService(svcObj)
@@ -367,7 +370,7 @@ func (lbc *LoadBalancerController) createUpstream(name string, backend *extensio
 	svcKey := namespace + "/" + backend.ServiceName
 	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
 	if err != nil {
-		glog.Infof("error getting service %v from the cache: %v", svcKey, err)
+		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
 	} else {
 		if svcExists {
 			svc := svcObj.(*api.Service)
@@ -377,7 +380,7 @@ func (lbc *LoadBalancerController) createUpstream(name string, backend *extensio
 			} else if svc.Spec.ClusterIP == "None" {
 				endps, err := lbc.endpLister.GetServiceEndpoints(svc)
 				if err != nil {
-					glog.Infof("error getting endpoints for service %v from the cache: %v", svc, err)
+					glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
 				} else {
 					upsServers := endpointsToUpstreamServers(endps, backend.ServicePort.IntValue())
 					if len(upsServers) > 0 {
@@ -424,7 +427,6 @@ func upstreamMapToSlice(upstreams map[string]nginx.Upstream) []nginx.Upstream {
 	result := make([]nginx.Upstream, 0, len(upstreams))
 
 	for _, ups := range upstreams {
-		glog.Info(ups)
 		result = append(result, ups)
 	}
 

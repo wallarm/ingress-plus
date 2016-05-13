@@ -34,4 +34,4 @@ COPY nginx/ingress.tmpl /
 
 RUN rm /etc/nginx/conf.d/*
 
-CMD ["/nginx-plus-ingress"]
+ENTRYPOINT ["/nginx-plus-ingress"]
