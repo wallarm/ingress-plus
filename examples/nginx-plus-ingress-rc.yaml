@@ -24,3 +24,6 @@ spec:
           hostPort: 443
         - containerPort: 8080
           hostPort: 8080
+        # turns on extensive logging including printing out generated NGINX conf files
+        # args:
+        #  - -v=3
