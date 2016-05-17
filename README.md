@@ -11,3 +11,5 @@ Instructions on how to run examples are [here](https://github.com/nginxinc/kuber
 
 **Note**: Implementations are experimental and not suitable for using in production. Implementations are based on
 the implementation of an Ingress Controller for GCE from [here](https://github.com/kubernetes/contrib/tree/master/ingress/controllers/gce)
+
+**Contact us**: [kubernetes@nginx.com](mailto:kubernetes@nginx.com)
