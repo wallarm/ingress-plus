@@ -22,6 +22,10 @@ var (
 	watchNamespace = flag.String("watch-namespace", api.NamespaceAll,
 		`Namespace to watch for Ingress/Services/Endpoints. By default the controller
 		watches acrosss all namespaces`)
+
+	nginxConfigMaps = flag.String("nginx-configmaps", "",
+		`Specifies a configmaps resource that can be used to customize NGINX
+		configuration. The value must follow the following format: <namespace>/<name>`)
 )
 
 func main() {
@@ -45,6 +49,8 @@ func main() {
 
 	ngxc, _ := nginx.NewNGINXController("/etc/nginx/", local)
 	ngxc.Start()
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, ngxc)
+	config := nginx.NewDefaultConfig()
+	cnf := nginx.NewConfigurator(ngxc, config)
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, ngxc, cnf, *nginxConfigMaps)
 	lbc.Run()
 }

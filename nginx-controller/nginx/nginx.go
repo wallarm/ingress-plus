@@ -46,8 +46,10 @@ type Server struct {
 
 // Location describes an NGINX location
 type Location struct {
-	Path     string
-	Upstream Upstream
+	Path                string
+	Upstream            Upstream
+	ProxyConnectTimeout string
+	ProxyReadTimeout    string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
