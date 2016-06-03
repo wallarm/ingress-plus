@@ -381,8 +381,6 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 	if ing.Spec.Backend != nil {
 		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
 		if err != nil {
-			glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
-		} else {
 			ingEx.Endpoints[ing.Spec.Backend.ServiceName] = endps
 		}
 	}
@@ -395,11 +393,8 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		for _, path := range rule.HTTP.Paths {
 			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
-				glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", path.Backend.ServiceName, err)
-			} else {
 				ingEx.Endpoints[path.Backend.ServiceName] = endps
 			}
-
 		}
 	}
 
@@ -412,18 +407,19 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extens
 	if err != nil {
 		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
 		return nil, err
-	}
-	if svcExists {
-		svc := svcObj.(*api.Service)
-		endps, err := lbc.endpLister.GetServiceEndpoints(svc)
-		if err != nil {
-			glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
-			return nil, err
+	} else {
+		if svcExists {
+			svc := svcObj.(*api.Service)
+			endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+			if err != nil {
+				glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
+				return nil, err
+			} else {
+				return &endps, nil
+			}
 		}
-		return &endps, nil
+		return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
 	}
-
-	return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
 }
 
 func parseNGINXConfigMaps(nginxConfigMaps string) (string, string, error) {

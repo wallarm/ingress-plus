@@ -1,8 +1,7 @@
 {{range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
 	zone {{$upstream.Name}} 64k;
-	{{range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}}:{{$server.Port}} resolve;{{end}}
+	state /var/lib/nginx/{{$upstream.Name}}.state;
 }{{end}}
 
 {{range $server := .Servers}}
@@ -28,6 +27,8 @@ server {
 
 	{{range $location := $server.Locations}}
 	location {{$location.Path}} {
+		proxy_connect_timeout {{$location.ProxyConnectTimeout}};
+		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

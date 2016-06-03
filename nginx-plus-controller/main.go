@@ -22,6 +22,10 @@ var (
 	watchNamespace = flag.String("watch-namespace", api.NamespaceAll,
 		`Namespace to watch for Ingress/Services/Endpoints. By default the controller
 		watches acrosss all namespaces`)
+
+	nginxConfigMaps = flag.String("nginx-configmaps", "",
+		`Specifies a configmaps resource that can be used to customize NGINX
+		configuration. The value must follow the following format: <namespace>/<name>`)
 )
 
 func main() {
@@ -43,18 +47,14 @@ func main() {
 		}
 	}
 
-	resolver := getKubeDNSIP(kubeClient)
-	ngxc, _ := nginx.NewNGINXController(resolver, "/etc/nginx/", local)
+	ngxc, _ := nginx.NewNGINXController("/etc/nginx/", local)
 	ngxc.Start()
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, ngxc)
-	lbc.Run()
-}
-
-func getKubeDNSIP(kubeClient *client.Client) string {
-	svcClient := kubeClient.Services("kube-system")
-	svc, err := svcClient.Get("kube-dns")
+	config := nginx.NewDefaultConfig()
+	nginxAPI, err := nginx.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)
 	if err != nil {
-		glog.Fatalf("Failed to get kube-dns service, err: %v", err)
+		glog.Fatalf("Failed to create NginxAPIController: %v", err)
 	}
-	return svc.Spec.ClusterIP
+	cnf := nginx.NewConfigurator(ngxc, config, nginxAPI)
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps)
+	lbc.Run()
 }

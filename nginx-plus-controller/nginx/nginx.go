@@ -10,24 +10,29 @@ import (
 	"github.com/golang/glog"
 )
 
-const resolverTemplate = "resolver {{$}} valid=5s;"
-const statusAPIConf = `server {
+const statusAndUpstreamConfAPIsConf = `server {
     listen 8080;
 
     root /usr/share/nginx/html;
+		
+		access_log off;
 
     location = /status.html {
     }
 
     location /status {
-        access_log off;
         status;
     }
+
+		location /upstream_conf {
+				upstream_conf;
+				allow 127.0.0.1;
+				deny all;
+		}
 }`
 
 // NGINXController Updates NGINX configuration, starts and reloads NGINX
 type NGINXController struct {
-	resolver       string
 	nginxConfdPath string
 	nginxCertsPath string
 	local          bool
@@ -63,14 +68,15 @@ type Server struct {
 
 // Location describes an NGINX location
 type Location struct {
-	Path     string
-	Upstream Upstream
+	Path                string
+	Upstream            Upstream
+	ProxyConnectTimeout string
+	ProxyReadTimeout    string
 }
 
 // NewNGINXController creates a NGINX controller
-func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGINXController, error) {
+func NewNGINXController(nginxConfPath string, local bool) (*NGINXController, error) {
 	ngxc := NGINXController{
-		resolver:       resolver,
 		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
 		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
 		local:          local,
@@ -78,44 +84,21 @@ func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGI
 
 	if !local {
 		ngxc.createCertsDir()
-		ngxc.createNGINXResolverConfigFile()
-		ngxc.writeStatusAPIConf()
+		ngxc.writeStatusAndUpstreamConfAPIsConf()
 	}
 
 	return &ngxc, nil
 }
 
-func (nginx *NGINXController) createNGINXResolverConfigFile() {
-	tmpl, err := template.New("resovler").Parse(resolverTemplate)
-	if err != nil {
-		glog.Fatal("Couldn't parse resolver template")
-	}
-	if glog.V(3) {
-		tmpl.Execute(os.Stdout, nginx.resolver)
-	}
-	filename := nginx.getIngressNGINXConfigFileName("resolver.conf")
-	if !nginx.local {
-		w, err := os.Create(filename)
-		if err != nil {
-			glog.Fatalf("Failed to open %v: %v", filename, err)
-		}
-		defer w.Close()
-
-		if err := tmpl.Execute(w, nginx.resolver); err != nil {
-			glog.Fatalf("Failed to write template %v", err)
-		}
-	}
-}
-
-func (nginx *NGINXController) writeStatusAPIConf() {
-	filename := nginx.getIngressNGINXConfigFileName("status.conf")
+func (nginx *NGINXController) writeStatusAndUpstreamConfAPIsConf() {
+	filename := nginx.getIngressNGINXConfigFileName("status-and-upstream-conf.conf")
 	conf, err := os.Create(filename)
 	if err != nil {
 		glog.Fatalf("Couldn't create conf file %v: %v", filename, err)
 	}
 	defer conf.Close()
 
-	_, err = conf.WriteString(statusAPIConf)
+	_, err = conf.WriteString(statusAndUpstreamConfAPIsConf)
 	if err != nil {
 		glog.Fatalf("Couldn't write to conf file %v: %v", filename, err)
 	}
@@ -209,6 +192,8 @@ func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename str
 func (nginx *NGINXController) Reload() {
 	if !nginx.local {
 		shellOut("nginx -s reload")
+	} else {
+		glog.V(3).Info("Reloading nginx")
 	}
 }
 
@@ -216,6 +201,8 @@ func (nginx *NGINXController) Reload() {
 func (nginx *NGINXController) Start() {
 	if !nginx.local {
 		shellOut("nginx")
+	} else {
+		glog.V(3).Info("Starting nginx")
 	}
 }
 

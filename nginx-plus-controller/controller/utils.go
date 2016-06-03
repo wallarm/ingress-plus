@@ -133,3 +133,16 @@ func (s *StoreToIngressLister) GetServiceIngress(svc *api.Service) (ings []exten
 	}
 	return
 }
+
+// StoreToConfigMapLister makes a Store that lists ConfigMaps
+type StoreToConfigMapLister struct {
+	cache.Store
+}
+
+// List lists all Ingress' in the store.
+func (s *StoreToConfigMapLister) List() (cfgm api.ConfigMapList, err error) {
+	for _, m := range s.Store.List() {
+		cfgm.Items = append(cfgm.Items, *(m.(*api.ConfigMap)))
+	}
+	return cfgm, nil
+}
