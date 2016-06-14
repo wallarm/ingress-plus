@@ -50,7 +50,6 @@ type LoadBalancerController struct {
 	endpQueue            *taskQueue
 	cfgmQueue            *taskQueue
 	stopCh               chan struct{}
-	nginx                *nginx.NGINXController
 	cnf                  *nginx.Configurator
 	watchNGINXConfigMaps bool
 }
@@ -58,11 +57,10 @@ type LoadBalancerController struct {
 var keyFunc = framework.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Duration, namespace string, nginx *nginx.NGINXController, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
 		client: kubeClient,
 		stopCh: make(chan struct{}),
-		nginx:  nginx,
 		cnf:    cnf,
 	}
 
@@ -147,45 +145,47 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		},
 		&api.Endpoints{}, resyncPeriod, endpHandlers)
 
-	nginxConfigMapsNS, nginxConfigMapsName, err := parseNGINXConfigMaps(nginxConfigMaps)
-	if err != nil {
-		glog.Warning(err)
-	} else {
-		lbc.watchNGINXConfigMaps = true
-		lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
+	if nginxConfigMaps != "" {
+		nginxConfigMapsNS, nginxConfigMapsName, err := parseNGINXConfigMaps(nginxConfigMaps)
+		if err != nil {
+			glog.Warning(err)
+		} else {
+			lbc.watchNGINXConfigMaps = true
+			lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
 
-		cfgmHandlers := framework.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				cfgm := obj.(*api.ConfigMap)
-				if cfgm.Name == nginxConfigMapsName {
-					glog.V(3).Infof("Adding ConfigMap: %v", cfgm.Name)
-					lbc.cfgmQueue.enqueue(obj)
-				}
-			},
-			DeleteFunc: func(obj interface{}) {
-				cfgm := obj.(*api.ConfigMap)
-				if cfgm.Name == nginxConfigMapsName {
-					glog.V(3).Infof("Removing ConfigMap: %v", cfgm.Name)
-					lbc.cfgmQueue.enqueue(obj)
-				}
-			},
-			UpdateFunc: func(old, cur interface{}) {
-				if !reflect.DeepEqual(old, cur) {
-					cfgm := cur.(*api.ConfigMap)
+			cfgmHandlers := framework.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					cfgm := obj.(*api.ConfigMap)
 					if cfgm.Name == nginxConfigMapsName {
-						glog.V(3).Infof("ConfigMap %v changed, syncing",
-							cur.(*api.ConfigMap).Name)
-						lbc.cfgmQueue.enqueue(cur)
+						glog.V(3).Infof("Adding ConfigMap: %v", cfgm.Name)
+						lbc.cfgmQueue.enqueue(obj)
 					}
-				}
-			},
+				},
+				DeleteFunc: func(obj interface{}) {
+					cfgm := obj.(*api.ConfigMap)
+					if cfgm.Name == nginxConfigMapsName {
+						glog.V(3).Infof("Removing ConfigMap: %v", cfgm.Name)
+						lbc.cfgmQueue.enqueue(obj)
+					}
+				},
+				UpdateFunc: func(old, cur interface{}) {
+					if !reflect.DeepEqual(old, cur) {
+						cfgm := cur.(*api.ConfigMap)
+						if cfgm.Name == nginxConfigMapsName {
+							glog.V(3).Infof("ConfigMap %v changed, syncing",
+								cur.(*api.ConfigMap).Name)
+							lbc.cfgmQueue.enqueue(cur)
+						}
+					}
+				},
+			}
+			lbc.cfgmLister.Store, lbc.cfgmController = framework.NewInformer(
+				&cache.ListWatch{
+					ListFunc:  configMapsListFunc(kubeClient, nginxConfigMapsNS),
+					WatchFunc: configMapsWatchFunc(kubeClient, nginxConfigMapsNS),
+				},
+				&api.ConfigMap{}, resyncPeriod, cfgmHandlers)
 		}
-		lbc.cfgmLister.Store, lbc.cfgmController = framework.NewInformer(
-			&cache.ListWatch{
-				ListFunc:  configMapsListFunc(kubeClient, nginxConfigMapsNS),
-				WatchFunc: configMapsWatchFunc(kubeClient, nginxConfigMapsNS),
-			},
-			&api.ConfigMap{}, resyncPeriod, cfgmHandlers)
 	}
 
 	return &lbc, nil
@@ -325,8 +325,6 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 		ingEx := lbc.createIngress(ing)
 		lbc.cnf.AddOrUpdateIngress(name, &ingEx)
 	}
-
-	lbc.nginx.Reload()
 }
 
 func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
@@ -381,6 +379,8 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 	if ing.Spec.Backend != nil {
 		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
 		if err != nil {
+			glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
+		} else {
 			ingEx.Endpoints[ing.Spec.Backend.ServiceName] = endps
 		}
 	}
@@ -393,8 +393,11 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		for _, path := range rule.HTTP.Paths {
 			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
+				glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", path.Backend.ServiceName, err)
+			} else {
 				ingEx.Endpoints[path.Backend.ServiceName] = endps
 			}
+
 		}
 	}
 
@@ -407,19 +410,18 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extens
 	if err != nil {
 		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
 		return nil, err
-	} else {
-		if svcExists {
-			svc := svcObj.(*api.Service)
-			endps, err := lbc.endpLister.GetServiceEndpoints(svc)
-			if err != nil {
-				glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
-				return nil, err
-			} else {
-				return &endps, nil
-			}
-		}
-		return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
 	}
+	if svcExists {
+		svc := svcObj.(*api.Service)
+		endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+		if err != nil {
+			glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
+			return nil, err
+		}
+		return &endps, nil
+	}
+	return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
+
 }
 
 func parseNGINXConfigMaps(nginxConfigMaps string) (string, string, error) {

@@ -51,6 +51,6 @@ func main() {
 	ngxc.Start()
 	config := nginx.NewDefaultConfig()
 	cnf := nginx.NewConfigurator(ngxc, config)
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, ngxc, cnf, *nginxConfigMaps)
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps)
 	lbc.Run()
 }

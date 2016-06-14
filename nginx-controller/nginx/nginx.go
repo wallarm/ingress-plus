@@ -166,6 +166,8 @@ func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename str
 func (nginx *NGINXController) Reload() {
 	if !nginx.local {
 		shellOut("nginx -s reload")
+	} else {
+		glog.V(3).Info("Reloading nginx")
 	}
 }
 
@@ -173,6 +175,8 @@ func (nginx *NGINXController) Reload() {
 func (nginx *NGINXController) Start() {
 	if !nginx.local {
 		shellOut("nginx")
+	} else {
+		glog.V(3).Info("Starting nginx")
 	}
 }
 
