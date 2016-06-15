@@ -19,9 +19,3 @@
 	```
 	$ make
 	```
-
-## Requirements for your Kubernetes setup
-
-[DNS cluster addon](https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/dns) must be enabled. It is enabled by default in deployments for most cloud providers.
-NGINX Plus gets the IP address of a service or IP addresses of Endpoints for a headless service by resolving
-the service DNS name.
