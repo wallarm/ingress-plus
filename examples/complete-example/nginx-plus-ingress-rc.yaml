@@ -14,7 +14,7 @@ spec:
         app: nginx-plus-ingress
     spec:
       containers:
-      - image: gcr.io/nginx-dev-ingress/nginx-plus-ingress:0.2
+      - image: gcr.io/nginx-dev-ingress/nginx-plus-ingress:0.3
         imagePullPolicy: Always
         name: nginx-plus-ingress
         ports:
