@@ -72,6 +72,7 @@ type Location struct {
 	Upstream            Upstream
 	ProxyConnectTimeout string
 	ProxyReadTimeout    string
+	ClientMaxBodySize   string
 }
 
 // NewNginxController creates a NGINX controller

@@ -174,6 +174,9 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if proxyReadTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-read-timeout"]; exists {
 		ingCfg.ProxyReadTimeout = proxyReadTimeout
 	}
+	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
+		ingCfg.ClientMaxBodySize = clientMaxBodySize
+	}
 
 	return ingCfg
 }
@@ -184,6 +187,7 @@ func createLocation(path string, upstream Upstream, cfg *Config) Location {
 		Upstream:            upstream,
 		ProxyConnectTimeout: cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:    cfg.ProxyReadTimeout,
+		ClientMaxBodySize:   cfg.ClientMaxBodySize,
 	}
 
 	return loc

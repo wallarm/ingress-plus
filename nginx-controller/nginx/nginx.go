@@ -50,6 +50,7 @@ type Location struct {
 	Upstream            Upstream
 	ProxyConnectTimeout string
 	ProxyReadTimeout    string
+	ClientMaxBodySize   string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.

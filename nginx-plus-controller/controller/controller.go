@@ -294,6 +294,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if proxyReadTimeout, exists := cfgm.Data["proxy-read-timeout"]; exists {
 			cfg.ProxyReadTimeout = proxyReadTimeout
 		}
+		if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
+			cfg.ClientMaxBodySize = clientMaxBodySize
+		}
 	}
 	lbc.cnf.UpdateConfig(cfg)
 
