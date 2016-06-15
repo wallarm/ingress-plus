@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 
-	ngxc, _ := nginx.NewNGINXController("/etc/nginx/", local)
+	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local)
 	ngxc.Start()
 	config := nginx.NewDefaultConfig()
 	nginxAPI, err := nginx.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)

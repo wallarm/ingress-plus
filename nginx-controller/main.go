@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 
-	ngxc, _ := nginx.NewNGINXController("/etc/nginx/", local)
+	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local)
 	ngxc.Start()
 	config := nginx.NewDefaultConfig()
 	cnf := nginx.NewConfigurator(ngxc, config)

@@ -13,13 +13,13 @@ const emptyHost = ""
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
-	nginx  *NGINXController
+	nginx  *NginxController
 	config *Config
 	lock   sync.Mutex
 }
 
 // NewConfigurator creates a new Configurator
-func NewConfigurator(nginx *NGINXController, config *Config) *Configurator {
+func NewConfigurator(nginx *NginxController, config *Config) *Configurator {
 	cnf := Configurator{
 		nginx:  nginx,
 		config: config,
@@ -34,7 +34,7 @@ func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
 	defer cnf.lock.Unlock()
 
 	pems := cnf.updateCertificates(ingEx)
-	nginxCfg := cnf.generateNGINXCfg(ingEx, pems)
+	nginxCfg := cnf.generateNginxCfg(ingEx, pems)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
 	cnf.nginx.Reload()
 }
@@ -71,7 +71,7 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 
 	return pems
 }
-func (cnf *Configurator) generateNGINXCfg(ingEx *IngressEx, pems map[string]string) IngressNGINXConfig {
+func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]string) IngressNginxConfig {
 	ingCfg := cnf.createConfig(ingEx)
 
 	upstreams := make(map[string]Upstream)
@@ -152,7 +152,7 @@ func (cnf *Configurator) generateNGINXCfg(ingEx *IngressEx, pems map[string]stri
 		servers = append(servers, server)
 	}
 
-	return IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers}
+	return IngressNginxConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers}
 }
 
 func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {

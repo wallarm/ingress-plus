@@ -35,7 +35,7 @@ import (
 )
 
 // LoadBalancerController watches Kubernetes API and
-// reconfigures NGINX via NGINXController when needed
+// reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
 	client               *client.Client
 	ingController        *framework.Controller
@@ -51,7 +51,7 @@ type LoadBalancerController struct {
 	cfgmQueue            *taskQueue
 	stopCh               chan struct{}
 	cnf                  *nginx.Configurator
-	watchNGINXConfigMaps bool
+	watchNginxConfigMaps bool
 }
 
 var keyFunc = framework.DeletionHandlingMetaNamespaceKeyFunc
@@ -146,11 +146,11 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		&api.Endpoints{}, resyncPeriod, endpHandlers)
 
 	if nginxConfigMaps != "" {
-		nginxConfigMapsNS, nginxConfigMapsName, err := parseNGINXConfigMaps(nginxConfigMaps)
+		nginxConfigMapsNS, nginxConfigMapsName, err := parseNginxConfigMaps(nginxConfigMaps)
 		if err != nil {
 			glog.Warning(err)
 		} else {
-			lbc.watchNGINXConfigMaps = true
+			lbc.watchNginxConfigMaps = true
 			lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
 
 			cfgmHandlers := framework.ResourceEventHandlerFuncs{
@@ -198,7 +198,7 @@ func (lbc *LoadBalancerController) Run() {
 	go lbc.endpController.Run(lbc.stopCh)
 	go lbc.ingQueue.run(time.Second, lbc.stopCh)
 	go lbc.endpQueue.run(time.Second, lbc.stopCh)
-	if lbc.watchNGINXConfigMaps {
+	if lbc.watchNginxConfigMaps {
 		go lbc.cfgmController.Run(lbc.stopCh)
 		go lbc.cfgmQueue.run(time.Second, lbc.stopCh)
 	}
@@ -424,7 +424,7 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extens
 
 }
 
-func parseNGINXConfigMaps(nginxConfigMaps string) (string, string, error) {
+func parseNginxConfigMaps(nginxConfigMaps string) (string, string, error) {
 	res := strings.Split(nginxConfigMaps, "/")
 	if len(res) != 2 {
 		return "", "", fmt.Errorf("NGINX configmaps name must follow the format <namespace>/<name>, got: %v", nginxConfigMaps)
