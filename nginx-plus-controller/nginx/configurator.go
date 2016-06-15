@@ -83,7 +83,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace)
+		upstream := cnf.createUpstream(name)
 		upstreams[name] = upstream
 	}
 
@@ -117,7 +117,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace)
+				upstream := cnf.createUpstream(upsName)
 				upstreams[upsName] = upstream
 			}
 
@@ -189,20 +189,8 @@ func createLocation(path string, upstream Upstream, cfg *Config) Location {
 	return loc
 }
 
-func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string) Upstream {
-	ups := Upstream{Name: name}
-
-	endps, exists := ingEx.Endpoints[backend.ServiceName]
-	if exists {
-		upsServers := endpointsToUpstreamServers(*endps, backend.ServicePort.IntValue())
-		if len(upsServers) > 0 {
-			ups.UpstreamServers = upsServers
-		}
-	}
-
-	ups = Upstream{Name: name}
-
-	return ups
+func (cnf *Configurator) createUpstream(name string) Upstream {
+	return Upstream{Name: name}
 }
 
 func pathOrDefault(path string) string {
