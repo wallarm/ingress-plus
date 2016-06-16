@@ -35,31 +35,37 @@ import (
 )
 
 // LoadBalancerController watches Kubernetes API and
-// reconfigures NGINX via NGINXController when needed
+// reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
-	client        *client.Client
-	ingController *framework.Controller
-	ingLister     StoreToIngressLister
-	ingQueue      *taskQueue
-	stopCh        chan struct{}
-	nginx         *nginx.NGINXController
+	client               *client.Client
+	ingController        *framework.Controller
+	svcController        *framework.Controller
+	endpController       *framework.Controller
+	cfgmController       *framework.Controller
+	ingLister            StoreToIngressLister
+	svcLister            cache.StoreToServiceLister
+	endpLister           cache.StoreToEndpointsLister
+	cfgmLister           StoreToConfigMapLister
+	ingQueue             *taskQueue
+	endpQueue            *taskQueue
+	cfgmQueue            *taskQueue
+	stopCh               chan struct{}
+	cnf                  *nginx.Configurator
+	watchNginxConfigMaps bool
 }
-
-const (
-	emptyHost = ""
-)
 
 var keyFunc = framework.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Duration, namespace string, nginx *nginx.NGINXController) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
 		client: kubeClient,
 		stopCh: make(chan struct{}),
-		nginx:  nginx,
+		cnf:    cnf,
 	}
 
 	lbc.ingQueue = NewTaskQueue(lbc.syncIng)
+	lbc.endpQueue = NewTaskQueue(lbc.syncEndp)
 
 	ingHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -87,13 +93,115 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		},
 		&extensions.Ingress{}, resyncPeriod, ingHandlers)
 
+	svcHandlers := framework.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			addSvc := obj.(*api.Service)
+			glog.V(3).Infof("Adding service: %v", addSvc.Name)
+			lbc.enqueueIngressForService(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			remSvc := obj.(*api.Service)
+			glog.V(3).Infof("Removing service: %v", remSvc.Name)
+			lbc.enqueueIngressForService(obj)
+		},
+		UpdateFunc: func(old, cur interface{}) {
+			if !reflect.DeepEqual(old, cur) {
+				glog.V(3).Infof("Service %v changed, syncing",
+					cur.(*api.Service).Name)
+				lbc.enqueueIngressForService(cur)
+			}
+		},
+	}
+	lbc.svcLister.Store, lbc.svcController = framework.NewInformer(
+		&cache.ListWatch{
+			ListFunc:  serviceListFunc(kubeClient, namespace),
+			WatchFunc: serviceWatchFunc(kubeClient, namespace),
+		},
+		&api.Service{}, resyncPeriod, svcHandlers)
+
+	endpHandlers := framework.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			addEndp := obj.(*api.Endpoints)
+			glog.V(3).Infof("Adding endpoints: %v", addEndp.Name)
+			lbc.endpQueue.enqueue(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			remEndp := obj.(*api.Endpoints)
+			glog.V(3).Infof("Removing endpoints: %v", remEndp.Name)
+			lbc.endpQueue.enqueue(obj)
+		},
+		UpdateFunc: func(old, cur interface{}) {
+			if !reflect.DeepEqual(old, cur) {
+				glog.V(3).Infof("Endpoints %v changed, syncing",
+					cur.(*api.Endpoints).Name)
+				lbc.endpQueue.enqueue(cur)
+			}
+		},
+	}
+	lbc.endpLister.Store, lbc.endpController = framework.NewInformer(
+		&cache.ListWatch{
+			ListFunc:  endpointsListFunc(kubeClient, namespace),
+			WatchFunc: endpointsWatchFunc(kubeClient, namespace),
+		},
+		&api.Endpoints{}, resyncPeriod, endpHandlers)
+
+	if nginxConfigMaps != "" {
+		nginxConfigMapsNS, nginxConfigMapsName, err := parseNginxConfigMaps(nginxConfigMaps)
+		if err != nil {
+			glog.Warning(err)
+		} else {
+			lbc.watchNginxConfigMaps = true
+			lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
+
+			cfgmHandlers := framework.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					cfgm := obj.(*api.ConfigMap)
+					if cfgm.Name == nginxConfigMapsName {
+						glog.V(3).Infof("Adding ConfigMap: %v", cfgm.Name)
+						lbc.cfgmQueue.enqueue(obj)
+					}
+				},
+				DeleteFunc: func(obj interface{}) {
+					cfgm := obj.(*api.ConfigMap)
+					if cfgm.Name == nginxConfigMapsName {
+						glog.V(3).Infof("Removing ConfigMap: %v", cfgm.Name)
+						lbc.cfgmQueue.enqueue(obj)
+					}
+				},
+				UpdateFunc: func(old, cur interface{}) {
+					if !reflect.DeepEqual(old, cur) {
+						cfgm := cur.(*api.ConfigMap)
+						if cfgm.Name == nginxConfigMapsName {
+							glog.V(3).Infof("ConfigMap %v changed, syncing",
+								cur.(*api.ConfigMap).Name)
+							lbc.cfgmQueue.enqueue(cur)
+						}
+					}
+				},
+			}
+			lbc.cfgmLister.Store, lbc.cfgmController = framework.NewInformer(
+				&cache.ListWatch{
+					ListFunc:  configMapsListFunc(kubeClient, nginxConfigMapsNS),
+					WatchFunc: configMapsWatchFunc(kubeClient, nginxConfigMapsNS),
+				},
+				&api.ConfigMap{}, resyncPeriod, cfgmHandlers)
+		}
+	}
+
 	return &lbc, nil
 }
 
 // Run starts the loadbalancer controller
 func (lbc *LoadBalancerController) Run() {
 	go lbc.ingController.Run(lbc.stopCh)
+	go lbc.svcController.Run(lbc.stopCh)
+	go lbc.endpController.Run(lbc.stopCh)
 	go lbc.ingQueue.run(time.Second, lbc.stopCh)
+	go lbc.endpQueue.run(time.Second, lbc.stopCh)
+	if lbc.watchNginxConfigMaps {
+		go lbc.cfgmController.Run(lbc.stopCh)
+		go lbc.cfgmQueue.run(time.Second, lbc.stopCh)
+	}
 	<-lbc.stopCh
 }
 
@@ -106,6 +214,95 @@ func ingressListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime
 func ingressWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
 	return func(options api.ListOptions) (watch.Interface, error) {
 		return c.Extensions().Ingress(ns).Watch(options)
+	}
+}
+
+func serviceListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
+	return func(opts api.ListOptions) (runtime.Object, error) {
+		return c.Services(ns).List(opts)
+	}
+}
+
+func serviceWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
+	return func(options api.ListOptions) (watch.Interface, error) {
+		return c.Services(ns).Watch(options)
+	}
+}
+
+func endpointsListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
+	return func(opts api.ListOptions) (runtime.Object, error) {
+		return c.Endpoints(ns).List(opts)
+	}
+}
+
+func endpointsWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
+	return func(options api.ListOptions) (watch.Interface, error) {
+		return c.Endpoints(ns).Watch(options)
+	}
+}
+
+func configMapsListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
+	return func(opts api.ListOptions) (runtime.Object, error) {
+		return c.ConfigMaps(ns).List(opts)
+	}
+}
+
+func configMapsWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
+	return func(options api.ListOptions) (watch.Interface, error) {
+		return c.ConfigMaps(ns).Watch(options)
+	}
+}
+
+func (lbc *LoadBalancerController) syncEndp(key string) {
+	glog.V(3).Infof("Syncing endpoints %v", key)
+
+	obj, endpExists, err := lbc.endpLister.Store.GetByKey(key)
+	if err != nil {
+		lbc.endpQueue.requeue(key, err)
+		return
+	}
+
+	if endpExists {
+		ings := lbc.getIngressForEndpoints(obj)
+
+		for _, ing := range ings {
+			ingEx := lbc.createIngress(&ing)
+			glog.V(3).Infof("Updating Endponits for %v/%v", ing.Name, ing.Namespace)
+			name := ing.Namespace + "-" + ing.Name
+			lbc.cnf.UpdateEndpoints(name, &ingEx)
+		}
+	}
+
+}
+
+func (lbc *LoadBalancerController) syncCfgm(key string) {
+	glog.V(3).Infof("Syncing configmap %v", key)
+
+	obj, cfgmExists, err := lbc.cfgmLister.Store.GetByKey(key)
+	if err != nil {
+		lbc.cfgmQueue.requeue(key, err)
+		return
+	}
+	cfg := nginx.NewDefaultConfig()
+
+	if cfgmExists {
+		cfgm := obj.(*api.ConfigMap)
+
+		if proxyConnectTimeout, exists := cfgm.Data["proxy-connect-timeout"]; exists {
+			cfg.ProxyConnectTimeout = proxyConnectTimeout
+		}
+		if proxyReadTimeout, exists := cfgm.Data["proxy-read-timeout"]; exists {
+			cfg.ProxyReadTimeout = proxyReadTimeout
+		}
+		if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
+			cfg.ClientMaxBodySize = clientMaxBodySize
+		}
+	}
+	lbc.cnf.UpdateConfig(cfg)
+
+	ings, _ := lbc.ingLister.List()
+	for _, ing := range ings.Items {
+		lbc.ingQueue.enqueue(&ing)
 	}
 }
 
@@ -123,24 +320,54 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 
 	if !ingExists {
 		glog.V(2).Infof("Deleting Ingress: %v\n", key)
-		lbc.nginx.DeleteIngress(name)
+		lbc.cnf.DeleteIngress(name)
 	} else {
 		glog.V(2).Infof("Adding or Updating Ingress: %v\n", key)
 
 		ing := obj.(*extensions.Ingress)
-
-		pems := lbc.updateCertificates(ing)
-
-		nginxCfg := lbc.generateNGINXCfg(ing, pems)
-		lbc.nginx.AddOrUpdateIngress(name, nginxCfg)
+		ingEx := lbc.createIngress(ing)
+		lbc.cnf.AddOrUpdateIngress(name, &ingEx)
 	}
-
-	lbc.nginx.Reload()
 }
 
-func (lbc *LoadBalancerController) updateCertificates(ing *extensions.Ingress) map[string]string {
-	pems := make(map[string]string)
+func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
+	svc := obj.(*api.Service)
+	ings := lbc.getIngressesForService(svc)
+	for _, ing := range ings {
+		lbc.ingQueue.enqueue(&ing)
+	}
+}
 
+func (lbc *LoadBalancerController) getIngressesForService(svc *api.Service) []extensions.Ingress {
+	ings, err := lbc.ingLister.GetServiceIngress(svc)
+	if err != nil {
+		glog.V(3).Infof("ignoring service %v: %v", svc.Name, err)
+		return nil
+	}
+	return ings
+}
+
+func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []extensions.Ingress {
+	var ings []extensions.Ingress
+	endp := obj.(*api.Endpoints)
+	svcKey := endp.GetNamespace() + "/" + endp.GetName()
+	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
+	if err != nil {
+		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
+	} else {
+		if svcExists {
+			ings = append(ings, lbc.getIngressesForService(svcObj.(*api.Service))...)
+		}
+	}
+	return ings
+}
+
+func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.IngressEx {
+	ingEx := nginx.IngressEx{
+		Ingress: ing,
+	}
+
+	ingEx.Secrets = make(map[string]*api.Secret)
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
 		secret, err := lbc.client.Secrets(ing.Namespace).Get(secretName)
@@ -148,148 +375,62 @@ func (lbc *LoadBalancerController) updateCertificates(ing *extensions.Ingress) m
 			glog.Warningf("Error retriveing secret %v for ing %v: %v", secretName, ing.Name, err)
 			continue
 		}
-		cert, ok := secret.Data[api.TLSCertKey]
-		if !ok {
-			glog.Warningf("Secret %v has no private key", secretName)
-			continue
-		}
-		key, ok := secret.Data[api.TLSPrivateKeyKey]
-		if !ok {
-			glog.Warningf("Secret %v has no cert", secretName)
-			continue
-		}
-
-		pemFileName := lbc.nginx.AddOrUpdateCertAndKey(secretName, string(cert), string(key))
-
-		for _, host := range tls.Hosts {
-			pems[host] = pemFileName
-		}
-		if len(tls.Hosts) == 0 {
-			pems[emptyHost] = pemFileName
-		}
+		ingEx.Secrets[secretName] = secret
 	}
 
-	return pems
-}
-
-func (lbc *LoadBalancerController) generateNGINXCfg(ing *extensions.Ingress, pems map[string]string) nginx.IngressNGINXConfig {
-	upstreams := make(map[string]nginx.Upstream)
-
+	ingEx.Endpoints = make(map[string]*api.Endpoints)
 	if ing.Spec.Backend != nil {
-		name := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
-		upstream := createUpstream(name, ing.Spec.Backend, ing.Namespace)
-		upstreams[name] = upstream
+		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
+		if err != nil {
+			glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
+		} else {
+			ingEx.Endpoints[ing.Spec.Backend.ServiceName] = endps
+		}
 	}
-
-	var servers []nginx.Server
 
 	for _, rule := range ing.Spec.Rules {
 		if rule.IngressRuleValue.HTTP == nil {
 			continue
 		}
 
-		serverName := rule.Host
-
-		statuzZone := rule.Host
-		if rule.Host == emptyHost {
-			statuzZone = ing.Namespace + "-" + ing.Name
-			glog.Warningf("Host field of ingress rule in %v/%v is empty", ing.Namespace, ing.Name)
-		}
-
-		server := nginx.Server{Name: serverName, StatusZone: statuzZone}
-
-		if pemFile, ok := pems[serverName]; ok {
-			server.SSL = true
-			server.SSLCertificate = pemFile
-			server.SSLCertificateKey = pemFile
-		}
-
-		var locations []nginx.Location
-		rootLocation := false
-
 		for _, path := range rule.HTTP.Paths {
-			upsName := getNameForUpstream(ing, rule.Host, path.Backend.ServiceName)
-
-			if _, exists := upstreams[upsName]; !exists {
-				upstream := createUpstream(upsName, &path.Backend, ing.Namespace)
-				upstreams[upsName] = upstream
+			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
+			if err != nil {
+				glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", path.Backend.ServiceName, err)
+			} else {
+				ingEx.Endpoints[path.Backend.ServiceName] = endps
 			}
-			loc := nginx.Location{Path: pathOrDefault(path.Path)}
 
-			loc.Upstream = upstreams[upsName]
-			locations = append(locations, loc)
-
-			if loc.Path == "/" {
-				rootLocation = true
-			}
 		}
+	}
 
-		if rootLocation == false && ing.Spec.Backend != nil {
-			upsName := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
-			loc := nginx.Location{Path: pathOrDefault("/")}
-			loc.Upstream = upstreams[upsName]
-			locations = append(locations, loc)
+	return ingEx
+}
+
+func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api.Endpoints, error) {
+	svcKey := namespace + "/" + backend.ServiceName
+	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
+	if err != nil {
+		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
+		return nil, err
+	}
+	if svcExists {
+		svc := svcObj.(*api.Service)
+		endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+		if err != nil {
+			glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
+			return nil, err
 		}
-
-		server.Locations = locations
-		servers = append(servers, server)
+		return &endps, nil
 	}
 
-	if len(ing.Spec.Rules) == 0 && ing.Spec.Backend != nil {
-		server := nginx.Server{Name: emptyHost, StatusZone: ing.Namespace + "-" + ing.Name}
+	return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
+}
 
-		if pemFile, ok := pems[emptyHost]; ok {
-			server.SSL = true
-			server.SSLCertificate = pemFile
-			server.SSLCertificateKey = pemFile
-		}
-
-		var locations []nginx.Location
-
-		upsName := getNameForUpstream(ing, emptyHost, ing.Spec.Backend.ServiceName)
-
-		loc := nginx.Location{Path: "/"}
-		loc.Upstream = upstreams[upsName]
-		locations = append(locations, loc)
-
-		server.Locations = locations
-		servers = append(servers, server)
+func parseNginxConfigMaps(nginxConfigMaps string) (string, string, error) {
+	res := strings.Split(nginxConfigMaps, "/")
+	if len(res) != 2 {
+		return "", "", fmt.Errorf("NGINX configmaps name must follow the format <namespace>/<name>, got: %v", nginxConfigMaps)
 	}
-
-	return nginx.IngressNGINXConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers}
-}
-
-func createUpstream(name string, backend *extensions.IngressBackend, namespace string) nginx.Upstream {
-	upstream := nginx.Upstream{Name: name}
-
-	var upsServers []nginx.UpstreamServer
-
-	address := fmt.Sprintf("%v.%v.svc.cluster.local", backend.ServiceName, namespace)
-	server := nginx.UpstreamServer{Address: address, Port: backend.ServicePort.String()}
-
-	upsServers = append(upsServers, server)
-	upstream.UpstreamServers = upsServers
-
-	return upstream
-}
-
-func pathOrDefault(path string) string {
-	if path == "" {
-		return "/"
-	}
-	return path
-}
-
-func getNameForUpstream(ing *extensions.Ingress, host string, service string) string {
-	return fmt.Sprintf("%v-%v-%v-%v", ing.Namespace, ing.Name, host, service)
-}
-
-func upstreamMapToSlice(upstreams map[string]nginx.Upstream) []nginx.Upstream {
-	result := make([]nginx.Upstream, 0, len(upstreams))
-
-	for _, ups := range upstreams {
-		result = append(result, ups)
-	}
-
-	return result
+	return res[0], res[1], nil
 }

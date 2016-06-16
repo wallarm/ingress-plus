@@ -1,15 +1,15 @@
-# Examples
+# Example
 
 ## Prerequisites
 
-* Kubernetes 1.2 (TSL support for Ingress has been added in 1.2)
-* For NGINX Plus: you've built and made available in your cluster
-[NGINX Plus](https://github.com/nginxinc/kubernetes-ingress/tree/master/nginx-plus-controller) Controller
-image and updated the container image field in the ```nginx-plus-ingress-rc.yaml``` file accordingly.
+* Kubernetes 1.2 (TLS support for Ingress has been added in 1.2)
+* For NGINX Plus:
+  * Build and make available in your cluster the [NGINX Plus](../../nginx-plus-controller) Controller image
+  * Update the container image field in the ```nginx-plus-ingress-rc.yaml``` file accordingly.
 
-## Running the examples
+## Running the example
 
-1. Create coffee and tea services and replication controllers:
+1. Create the coffee and the tea services and replication controllers:
 
   ```
   $ kubectl create -f tea-rc.yaml
@@ -17,17 +17,17 @@ image and updated the container image field in the ```nginx-plus-ingress-rc.yaml
   $ kubectl create -f coffee-rc.yaml
   $ kubectl create -f coffee-svc.yaml
   ```
-1. Create a Secret with an SSL certificate and a key:
+1. Create a secret with an SSL certificate and a key:
   ```
   $ kubectl create -f cafe-secret.yaml
   ```
 
-1. Create Ingress Resource:
+1. Create an Ingress Resource:
   ```
   $ kubectl create -f cafe-ingress.yaml
   ```
 
-1. Create either NGINX or NGINX Plus Ingress Controller:
+1. Create either an NGINX or an NGINX Plus Ingress Controller:
   ```
   $ kubectl create -f nginx-ingress-rc.yaml
   ```
@@ -35,14 +35,12 @@ image and updated the container image field in the ```nginx-plus-ingress-rc.yaml
   ```
   $ kubectl create -f nginx-plus-ingress-rc.yaml
   ```
-  If you're creating the Plus controller, please make sure that the Docker image
-  is available in your cluster.
 
 1. The Controller container exposes ports 80, 443 (and 8080 for NGINX Plus )
-on the host it runs. Make sure to add a firewall to allow incoming traffic
-on this ports.
+on the host it is running on. Make sure to add a firewall rule to allow incoming traffic
+though these ports.
 
-1. Find out the external IP address of the node of the controller:
+1. Find out the external IP address of the node where the controller is running:
   ```
   $ kubectl get pods -o wide
   NAME                          READY     STATUS    RESTARTS   AGE       NODE
@@ -59,9 +57,9 @@ on this ports.
     }
   ```
 
-
-1. We'll use ```curl```'s --insecure to turn off certificate verification of our self-signed
-certificate and --resolve option to set the Host header of a request with ```cafe.example.com```
+1. To see that the controller is working, let's curl the coffee and the tea services.
+We'll use ```curl```'s --insecure option to turn off certificate verification of our self-signed
+certificate and the --resolve option to set the Host header of a request with ```cafe.example.com```
   To get coffee:
   ```
   $ curl --resolve cafe.example.com:443:XXX.YYY.ZZZ.III https://cafe.example.com/coffee --insecure
@@ -85,7 +83,7 @@ certificate and --resolve option to set the Host header of a request with ```caf
   </body>
   </html>
   ```
-  To get tea:
+  If your rather prefer tea:
   ```
   $ curl --resolve cafe.example.com:443:XXX.YYY.ZZZ.III https://cafe.example.com/tea --insecure
   <!DOCTYPE html>
@@ -108,3 +106,6 @@ certificate and --resolve option to set the Host header of a request with ```caf
   </body>
   </html>
   ```
+
+  1. If you're using the Plus controller, you can open the live activity monitoring dashboard, which is available at http://XXX.YYY.ZZZ.III:8080/status.html
+  If you go to the Upstream tab, you'll see: ![dashboard](dashboard.png)

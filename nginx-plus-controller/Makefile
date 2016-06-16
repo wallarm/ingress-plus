@@ -1,6 +1,6 @@
 all: push
 
-TAG = 0.2
+TAG = 0.3
 PREFIX = gcr.io/nginx-dev-ingress/nginx-plus-ingress
 
 nginx-plus-ingress:

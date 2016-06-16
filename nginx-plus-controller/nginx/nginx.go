@@ -10,31 +10,36 @@ import (
 	"github.com/golang/glog"
 )
 
-const resolverTemplate = "resolver {{$}} valid=5s;"
-const statusAPIConf = `server {
+const statusAndUpstreamConfAPIsConf = `server {
     listen 8080;
 
     root /usr/share/nginx/html;
+
+		access_log off;
 
     location = /status.html {
     }
 
     location /status {
-        access_log off;
         status;
     }
+
+		location /upstream_conf {
+				upstream_conf;
+				allow 127.0.0.1;
+				deny all;
+		}
 }`
 
-// NGINXController Updates NGINX configuration, starts and reloads NGINX
-type NGINXController struct {
-	resolver       string
+// NginxController Updates NGINX configuration, starts and reloads NGINX
+type NginxController struct {
 	nginxConfdPath string
 	nginxCertsPath string
 	local          bool
 }
 
-// IngressNGINXConfig describes an NGINX configuration
-type IngressNGINXConfig struct {
+// IngressNginxConfig describes an NGINX configuration
+type IngressNginxConfig struct {
 	Upstreams []Upstream
 	Servers   []Server
 }
@@ -63,14 +68,16 @@ type Server struct {
 
 // Location describes an NGINX location
 type Location struct {
-	Path     string
-	Upstream Upstream
+	Path                string
+	Upstream            Upstream
+	ProxyConnectTimeout string
+	ProxyReadTimeout    string
+	ClientMaxBodySize   string
 }
 
-// NewNGINXController creates a NGINX controller
-func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGINXController, error) {
-	ngxc := NGINXController{
-		resolver:       resolver,
+// NewNginxController creates a NGINX controller
+func NewNginxController(nginxConfPath string, local bool) (*NginxController, error) {
+	ngxc := NginxController{
 		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
 		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
 		local:          local,
@@ -78,44 +85,21 @@ func NewNGINXController(resolver string, nginxConfPath string, local bool) (*NGI
 
 	if !local {
 		ngxc.createCertsDir()
-		ngxc.createNGINXResolverConfigFile()
-		ngxc.writeStatusAPIConf()
+		ngxc.writeStatusAndUpstreamConfAPIsConf()
 	}
 
 	return &ngxc, nil
 }
 
-func (nginx *NGINXController) createNGINXResolverConfigFile() {
-	tmpl, err := template.New("resovler").Parse(resolverTemplate)
-	if err != nil {
-		glog.Fatal("Couldn't parse resolver template")
-	}
-	if glog.V(3) {
-		tmpl.Execute(os.Stdout, nginx.resolver)
-	}
-	filename := nginx.getIngressNGINXConfigFileName("resolver.conf")
-	if !nginx.local {
-		w, err := os.Create(filename)
-		if err != nil {
-			glog.Fatalf("Failed to open %v: %v", filename, err)
-		}
-		defer w.Close()
-
-		if err := tmpl.Execute(w, nginx.resolver); err != nil {
-			glog.Fatalf("Failed to write template %v", err)
-		}
-	}
-}
-
-func (nginx *NGINXController) writeStatusAPIConf() {
-	filename := nginx.getIngressNGINXConfigFileName("status.conf")
+func (nginx *NginxController) writeStatusAndUpstreamConfAPIsConf() {
+	filename := nginx.getIngressNginxConfigFileName("status-and-upstream-conf.conf")
 	conf, err := os.Create(filename)
 	if err != nil {
 		glog.Fatalf("Couldn't create conf file %v: %v", filename, err)
 	}
 	defer conf.Close()
 
-	_, err = conf.WriteString(statusAPIConf)
+	_, err = conf.WriteString(statusAndUpstreamConfAPIsConf)
 	if err != nil {
 		glog.Fatalf("Couldn't write to conf file %v: %v", filename, err)
 	}
@@ -123,8 +107,8 @@ func (nginx *NGINXController) writeStatusAPIConf() {
 
 // DeleteIngress deletes the configuration file, which corresponds for the
 // specified ingress from NGINX conf directory
-func (nginx *NGINXController) DeleteIngress(name string) {
-	filename := nginx.getIngressNGINXConfigFileName(name)
+func (nginx *NginxController) DeleteIngress(name string) {
+	filename := nginx.getIngressNginxConfigFileName(name)
 	glog.V(3).Infof("deleting %v", filename)
 
 	if !nginx.local {
@@ -136,15 +120,15 @@ func (nginx *NGINXController) DeleteIngress(name string) {
 
 // AddOrUpdateIngress creates or updates a file with
 // the specified configuration for the specified ingress
-func (nginx *NGINXController) AddOrUpdateIngress(name string, config IngressNGINXConfig) {
+func (nginx *NginxController) AddOrUpdateIngress(name string, config IngressNginxConfig) {
 	glog.V(3).Infof("Updating NGINX configuration")
-	filename := nginx.getIngressNGINXConfigFileName(name)
+	filename := nginx.getIngressNginxConfigFileName(name)
 	nginx.templateIt(config, filename)
 }
 
 // AddOrUpdateCertAndKey creates a .pem file wth the cert and the key with the
 // specified name
-func (nginx *NGINXController) AddOrUpdateCertAndKey(name string, cert string, key string) string {
+func (nginx *NginxController) AddOrUpdateCertAndKey(name string, cert string, key string) string {
 	pemFileName := nginx.nginxCertsPath + "/" + name + ".pem"
 
 	if !nginx.local {
@@ -172,11 +156,11 @@ func (nginx *NGINXController) AddOrUpdateCertAndKey(name string, cert string, ke
 	return pemFileName
 }
 
-func (nginx *NGINXController) getIngressNGINXConfigFileName(name string) string {
+func (nginx *NginxController) getIngressNginxConfigFileName(name string) string {
 	return path.Join(nginx.nginxConfdPath, name+".conf")
 }
 
-func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename string) {
+func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
 	tmpl, err := template.New("ingress.tmpl").ParseFiles("ingress.tmpl")
 	if err != nil {
 		glog.Fatal("Failed to parse template file")
@@ -206,20 +190,24 @@ func (nginx *NGINXController) templateIt(config IngressNGINXConfig, filename str
 }
 
 // Reload reloads NGINX
-func (nginx *NGINXController) Reload() {
+func (nginx *NginxController) Reload() {
 	if !nginx.local {
 		shellOut("nginx -s reload")
+	} else {
+		glog.V(3).Info("Reloading nginx")
 	}
 }
 
 // Start starts NGINX
-func (nginx *NGINXController) Start() {
+func (nginx *NginxController) Start() {
 	if !nginx.local {
 		shellOut("nginx")
+	} else {
+		glog.V(3).Info("Starting nginx")
 	}
 }
 
-func (nginx *NGINXController) createCertsDir() {
+func (nginx *NginxController) createCertsDir() {
 	if err := os.Mkdir(nginx.nginxCertsPath, os.ModeDir); err != nil {
 		glog.Fatalf("Couldn't create directory %v: %v", nginx.nginxCertsPath, err)
 	}
