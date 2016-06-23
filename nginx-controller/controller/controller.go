@@ -268,7 +268,7 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 		for _, ing := range ings {
 			ingEx := lbc.createIngress(&ing)
 			glog.V(3).Infof("Updating Endponits for %v/%v", ing.Name, ing.Namespace)
-			name := ing.Namespace + "/" + ing.Name
+			name := ing.Namespace + "-" + ing.Name
 			lbc.cnf.UpdateEndpoints(name, &ingEx)
 		}
 	}
@@ -355,7 +355,7 @@ func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []ext
 	if err != nil {
 		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
 	} else {
-		if svcExists && svcObj.(*api.Service).Spec.ClusterIP == "None" {
+		if svcExists {
 			ings = append(ings, lbc.getIngressesForService(svcObj.(*api.Service))...)
 		}
 	}
