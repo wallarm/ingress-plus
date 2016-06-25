@@ -254,4 +254,10 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 	defer cnf.lock.Unlock()
 
 	cnf.config = config
+	mainCfg := &NginxMainConfig{
+		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
+		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
+	}
+
+	cnf.nginx.UpdateMainConfigFile(mainCfg)
 }

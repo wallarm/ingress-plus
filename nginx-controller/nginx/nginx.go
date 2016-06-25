@@ -53,6 +53,12 @@ type Location struct {
 	ClientMaxBodySize   string
 }
 
+// NginxMainConfig describe the main NGINX configuration file
+type NginxMainConfig struct {
+	ServerNamesHashBucketSize string
+	ServerNamesHashMaxSize    string
+}
+
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
 // proxy_pass to an upstream with the default server returns 502.
 // We use it for services that have no endpoints
@@ -74,6 +80,9 @@ func NewNginxController(nginxConfPath string, local bool) (*NginxController, err
 	if !local {
 		ngxc.createCertsDir()
 	}
+
+	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize}
+	ngxc.UpdateMainConfigFile(cfg)
 
 	return &ngxc, nil
 }
@@ -208,4 +217,33 @@ func shellOut(cmd string) {
 		glog.Errorf("Command %v stderr: %q", cmd, stderr.String())
 		glog.Fatalf("Command %v finished with error: %v", cmd, err)
 	}
+}
+
+// UpdateMainConfigFile update the main NGINX configuration file
+func (nginx *NginxController) UpdateMainConfigFile(cfg *NginxMainConfig) {
+	tmpl, err := template.New("nginx.conf.tmpl").ParseFiles("nginx.conf.tmpl")
+	if err != nil {
+		glog.Fatalf("Failed to parse the main config template file: %v", err)
+	}
+
+	filename := "/etc/nginx/nginx.conf"
+	glog.V(3).Infof("Writing NGINX conf to %v", filename)
+
+	if glog.V(3) {
+		tmpl.Execute(os.Stdout, cfg)
+	}
+
+	if !nginx.local {
+		w, err := os.Create(filename)
+		if err != nil {
+			glog.Fatalf("Failed to open %v: %v", filename, err)
+		}
+		defer w.Close()
+
+		if err := tmpl.Execute(w, cfg); err != nil {
+			glog.Fatalf("Failed to write template %v", err)
+		}
+	}
+
+	glog.V(3).Infof("The main NGINX configuration file had been updated")
 }
