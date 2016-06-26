@@ -5,6 +5,8 @@ NGINX directives:
 * [proxy_connect_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_connect_timeout)
 * [proxy_read_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout)
 * [client_max_body_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)
+* [server_names_hash_max_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_names_hash_max_size) via ConfigMaps only
+* [server_names_hash_bucket_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_names_hash_bucket_size) via ConfigMaps only
 
 ## Using ConfigMaps
 
@@ -13,7 +15,8 @@ For example, `-nginx-configmaps=default/nginx-config`, where we specify
 the config map to use with the following format: `<namespace>/<name>`. See [nginx-ingress-rc.yaml](../complete-example/nginx-ingress-rc.yaml) or
 [nginx-plus-ingress-rc.yaml](../complete-example/nginx-plus-ingress-rc.yaml) files.
 
-1. Create a configmaps file. Here is the content of an example file (**nginx-config.yaml**):
+1. Create a configmaps file with the name *nginx-config.yaml* and set the values
+that make sense for your setup:
   ```yaml
   kind: ConfigMap
   apiVersion: v1
@@ -24,7 +27,7 @@ the config map to use with the following format: `<namespace>/<name>`. See [ngin
     proxy-read-timeout: "10s"
     client-max-body-size: "2m"
   ```
-  Set the values that make sense for your setup.
+  See the **nginx-config.yaml** from this directory for a complete example.
 
 2. Create a configmaps resource:
   ```
