@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"os"
 	"os/exec"
@@ -173,18 +174,26 @@ func (nginx *NginxController) templateIt(config IngressNginxConfig, filename str
 }
 
 // Reload reloads NGINX
-func (nginx *NginxController) Reload() {
+func (nginx *NginxController) Reload() error {
 	if !nginx.local {
-		shellOut("nginx -s reload")
+		if err := shellOut("nginx -t"); err != nil {
+			return fmt.Errorf("Invalid nginx configuration detected, not reloading", err)
+		}
+		if err := shellOut("nginx -s reload"); err != nil {
+			return fmt.Errorf("nginx -s failed: %s", err)
+		}
 	} else {
 		glog.V(3).Info("Reloading nginx")
 	}
+	return nil
 }
 
 // Start starts NGINX
 func (nginx *NginxController) Start() {
 	if !nginx.local {
-		shellOut("nginx")
+		if err := shellOut("nginx"); err != nil {
+			glog.Fatalf("Failed to start nginx")
+		}
 	} else {
 		glog.V(3).Info("Starting nginx")
 	}
@@ -196,7 +205,7 @@ func (nginx *NginxController) createCertsDir() {
 	}
 }
 
-func shellOut(cmd string) {
+func shellOut(cmd string) (err error) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -206,17 +215,17 @@ func shellOut(cmd string) {
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 
-	err := command.Start()
+	err = command.Start()
 	if err != nil {
-		glog.Fatalf("Failed to execute %v, err: %v", cmd, err)
+		return fmt.Errorf("Failed to execute %v, err: %v", cmd, err)
 	}
 
 	err = command.Wait()
 	if err != nil {
-		glog.Errorf("Command %v stdout: %q", cmd, stdout.String())
-		glog.Errorf("Command %v stderr: %q", cmd, stderr.String())
-		glog.Fatalf("Command %v finished with error: %v", cmd, err)
+		return fmt.Errorf("Command %v stdout: %q\nstderr: %q\nfinished with error: %v", cmd,
+			stdout.String(), stderr.String(), err)
 	}
+	return nil
 }
 
 // UpdateMainConfigFile update the main NGINX configuration file
