@@ -1,18 +1,15 @@
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: DaemonSet
 metadata:
-  name: nginx-plus-ingress-rc
-  labels:
-    app: nginx-plus-ingress
+  name: nginx-plus-ingress-controller
 spec:
-  replicas: 1
-  selector:
-    app: nginx-plus-ingress
   template:
     metadata:
       labels:
-        app: nginx-plus-ingress
+        name: nginx-plus-ingress-controller
     spec:
+      # nodeSelector:
+      #   role: nginx-ingress
       containers:
       - image: nginx-plus-ingress:0.3
         imagePullPolicy: Always
@@ -22,8 +19,6 @@ spec:
           hostPort: 80
         - containerPort: 443
           hostPort: 443
-        - containerPort: 8080
-          hostPort: 8080
         # Uncomment the lines below to enable extensive logging and/or customization of
         # NGINX configuration with configmaps
         #args:
