@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/golang/glog"
@@ -78,6 +79,8 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	upstreams := make(map[string]Upstream)
 
+	wsServices := getWebsocketServices(ingEx)
+
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace)
@@ -116,7 +119,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 				upstreams[upsName] = upstream
 			}
 
-			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg)
+			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg, wsServices[path.Backend.ServiceName])
 			locations = append(locations, loc)
 
 			if loc.Path == "/" {
@@ -126,7 +129,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		if rootLocation == false && ingEx.Ingress.Spec.Backend != nil {
 			upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg)
+			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName])
 			locations = append(locations, loc)
 		}
 
@@ -147,7 +150,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 
-		loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg)
+		loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName])
 		locations = append(locations, loc)
 
 		server.Locations = locations
@@ -172,13 +175,26 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	return ingCfg
 }
 
-func createLocation(path string, upstream Upstream, cfg *Config) Location {
+func getWebsocketServices(ingEx *IngressEx) map[string]bool {
+	wsServices := make(map[string]bool)
+
+	if services, exists := ingEx.Ingress.Annotations["nginx.org/websocket-services"]; exists {
+		for _, svc := range strings.Split(services, ",") {
+			wsServices[svc] = true
+		}
+	}
+
+	return wsServices
+}
+
+func createLocation(path string, upstream Upstream, cfg *Config, websocket bool) Location {
 	loc := Location{
 		Path:                path,
 		Upstream:            upstream,
 		ProxyConnectTimeout: cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:    cfg.ProxyReadTimeout,
 		ClientMaxBodySize:   cfg.ClientMaxBodySize,
+		Websocket:           websocket,
 	}
 
 	return loc
