@@ -31,5 +31,10 @@ http {
     server_names_hash_max_size {{.ServerNamesHashMaxSize}};
     {{if .ServerNamesHashBucketSize}}server_names_hash_bucket_size {{.ServerNamesHashBucketSize}};{{end}}
 
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
     include /etc/nginx/conf.d/*.conf;
 }
