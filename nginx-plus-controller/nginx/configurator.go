@@ -40,9 +40,12 @@ func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
 	pems := cnf.updateCertificates(ingEx)
 	nginxCfg := cnf.generateNginxCfg(ingEx, pems)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
-	cnf.nginx.Reload()
-	time.Sleep(500 * time.Millisecond)
-	cnf.updateEndpoints(name, ingEx)
+	if err := cnf.nginx.Reload(); err != nil {
+		glog.Errorf("Error when adding or updating ingress %q: %q", name, err)
+	} else {
+		time.Sleep(500 * time.Millisecond)
+		cnf.updateEndpoints(name, ingEx)
+	}
 }
 
 func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string {
@@ -257,7 +260,9 @@ func (cnf *Configurator) DeleteIngress(name string) {
 	defer cnf.lock.Unlock()
 
 	cnf.nginx.DeleteIngress(name)
-	cnf.nginx.Reload()
+	if err := cnf.nginx.Reload(); err != nil {
+		glog.Errorf("Error when removing ingress %q: %q", name, err)
+	}
 }
 
 // UpdateEndpoints updates endpoints in NGINX configuration for an Ingress resource

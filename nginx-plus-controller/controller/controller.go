@@ -267,7 +267,7 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 
 		for _, ing := range ings {
 			ingEx := lbc.createIngress(&ing)
-			glog.V(3).Infof("Updating Endponits for %v/%v", ing.Name, ing.Namespace)
+			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
 			lbc.cnf.UpdateEndpoints(name, &ingEx)
 		}
@@ -378,7 +378,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		secretName := tls.SecretName
 		secret, err := lbc.client.Secrets(ing.Namespace).Get(secretName)
 		if err != nil {
-			glog.Warningf("Error retriveing secret %v for ing %v: %v", secretName, ing.Name, err)
+			glog.Warningf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 			continue
 		}
 		ingEx.Secrets[secretName] = secret
@@ -388,7 +388,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 	if ing.Spec.Backend != nil {
 		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
 		if err != nil {
-			glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
+			glog.V(3).Infof("Error retrieving endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
 		} else {
 			ingEx.Endpoints[ing.Spec.Backend.ServiceName] = endps
 		}
@@ -402,7 +402,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		for _, path := range rule.HTTP.Paths {
 			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
-				glog.V(3).Infof("Error retriviend endpoints for the services %v: %v", path.Backend.ServiceName, err)
+				glog.V(3).Infof("Error retrieving endpoints for the services %v: %v", path.Backend.ServiceName, err)
 			} else {
 				ingEx.Endpoints[path.Backend.ServiceName] = endps
 			}
@@ -430,7 +430,7 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extens
 		return &endps, nil
 	}
 
-	return nil, fmt.Errorf("Svc %s doesn't exists", svcKey)
+	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 }
 
 func parseNginxConfigMaps(nginxConfigMaps string) (string, string, error) {
