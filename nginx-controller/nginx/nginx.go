@@ -178,10 +178,10 @@ func (nginx *NginxController) templateIt(config IngressNginxConfig, filename str
 func (nginx *NginxController) Reload() error {
 	if !nginx.local {
 		if err := shellOut("nginx -t"); err != nil {
-			return fmt.Errorf("Invalid nginx configuration detected, not reloading", err)
+			return fmt.Errorf("Invalid nginx configuration detected, not reloading: %s", err)
 		}
 		if err := shellOut("nginx -s reload"); err != nil {
-			return fmt.Errorf("nginx -s failed: %s", err)
+			return fmt.Errorf("Reloading NGINX failed: %s", err)
 		}
 	} else {
 		glog.V(3).Info("Reloading nginx")
