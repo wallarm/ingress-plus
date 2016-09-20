@@ -49,6 +49,7 @@ type IngressNginxConfig struct {
 type Upstream struct {
 	Name            string
 	UpstreamServers []UpstreamServer
+	StickyCookie    string
 }
 
 // UpstreamServer describes a server in an NGINX upstream
