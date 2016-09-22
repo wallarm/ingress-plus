@@ -86,10 +86,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	upstreams := make(map[string]Upstream)
 
 	wsServices := getWebsocketServices(ingEx)
+	spServices := getSessionPersistenceServices(ingEx)
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		upstream := cnf.createUpstream(name)
+		upstream := cnf.createUpstream(name, spServices[ingEx.Ingress.Spec.Backend.ServiceName])
 		upstreams[name] = upstream
 	}
 
@@ -123,7 +124,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := cnf.createUpstream(upsName)
+				upstream := cnf.createUpstream(upsName, spServices[path.Backend.ServiceName])
 				upstreams[upsName] = upstream
 			}
 
@@ -199,6 +200,37 @@ func getWebsocketServices(ingEx *IngressEx) map[string]bool {
 	return wsServices
 }
 
+func getSessionPersistenceServices(ingEx *IngressEx) map[string]string {
+	spServices := make(map[string]string)
+
+	if services, exists := ingEx.Ingress.Annotations["nginx.com/sticky-cookie-services"]; exists {
+		for _, svc := range strings.Split(services, ";") {
+			if serviceName, sticky, err := parseStickyService(svc); err != nil {
+				glog.Errorf("In %v nginx.com/sticky-cookie-services contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
+			} else {
+				spServices[serviceName] = sticky
+			}
+		}
+	}
+
+	return spServices
+}
+
+func parseStickyService(service string) (serviceName string, stickyCookie string, err error) {
+	parts := strings.SplitN(service, " ", 2)
+
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", service)
+	}
+
+	svcNameParts := strings.Split(parts[0], "=")
+	if len(svcNameParts) != 2 {
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", svcNameParts)
+	}
+
+	return svcNameParts[1], parts[1], nil
+}
+
 func createLocation(path string, upstream Upstream, cfg *Config, websocket bool) Location {
 	loc := Location{
 		Path:                path,
@@ -212,8 +244,8 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool)
 	return loc
 }
 
-func (cnf *Configurator) createUpstream(name string) Upstream {
-	return Upstream{Name: name}
+func (cnf *Configurator) createUpstream(name string, stickyCookie string) Upstream {
+	return Upstream{Name: name, StickyCookie: stickyCookie}
 }
 
 func pathOrDefault(path string) string {

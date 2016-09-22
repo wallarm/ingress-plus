@@ -1,6 +1,9 @@
 {{range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
 	zone {{$upstream.Name}} 64k;
+	{{if $upstream.StickyCookie}}
+	sticky cookie {{$upstream.StickyCookie}};
+	{{end}}
 	state /var/lib/nginx/{{$upstream.Name}}.state;
 }{{end}}
 

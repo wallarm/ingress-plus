@@ -42,6 +42,7 @@ The NGINX Plus Ingress Controller leverages the advanced features of NGINX Plus,
 Every time the number of pods of services you expose via Ingress changes, the Ingress controller updates the configuration of NGINX to reflect those changes. For open source NGINX software, the configuration file must be changed followed by the configuration reload. For NGINX Plus, we use the [on-the-fly reconfiguration](https://www.nginx.com/products/on-the-fly-reconfiguration/) feature, which allows you to update NGINX Plus on-the-fly without reloading the configuration. This prevents a potential increase of memory usage and overall system overloading, which could occur with frequent configuration reloads.
 * **Real-time Statistics**
 NGINX Plus provides you with [advanced statistics](https://www.nginx.com/products/live-activity-monitoring/), which you can access either through the API or via the built-in dashboard. This can give you insights into how NGINX Plus and your applications are performing.
+* **Session Persistence** When enabled, NGINX Plus makes sure that all the requests from the same client are always passed to the same backend container using the *sticky cookie* method. Refer to the [session persistence examples](examples/session-persistence) to find out how to configure it.
 
 ## Advanced load balancing (beyond Ingress)
 
