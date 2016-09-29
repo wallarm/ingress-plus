@@ -44,6 +44,10 @@ Every time the number of pods of services you expose via Ingress changes, the In
 NGINX Plus provides you with [advanced statistics](https://www.nginx.com/products/live-activity-monitoring/), which you can access either through the API or via the built-in dashboard. This can give you insights into how NGINX Plus and your applications are performing.
 * **Session Persistence** When enabled, NGINX Plus makes sure that all the requests from the same client are always passed to the same backend container using the *sticky cookie* method. Refer to the [session persistence examples](examples/session-persistence) to find out how to configure it.
 
+## Using Multiple Ingress Controllers
+
+You can run multiple Ingress controllers at the same time. For example, if your Kubernetes cluster is deployed in cloud, you can run the NGINX controller and the corresponding cloud HTTP load balancing controller. Refer to the [example](examples/multiple-ingress-controllers) to learn more.
+
 ## Advanced load balancing (beyond Ingress)
 
 When your requirements go beyond what Ingress offers, you can use NGINX and

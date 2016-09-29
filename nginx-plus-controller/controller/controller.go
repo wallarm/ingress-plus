@@ -34,6 +34,11 @@ import (
 	"k8s.io/kubernetes/pkg/watch"
 )
 
+const (
+	ingressClassKey   = "kubernetes.io/ingress.class"
+	nginxIngressClass = "nginx"
+)
+
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
@@ -70,18 +75,28 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	ingHandlers := framework.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
+			if !isNginxIngress(addIng) {
+				glog.Infof("Ignoring Ingress %v based on Annotation %v", addIng.Name, ingressClassKey)
+				return
+			}
 			glog.V(3).Infof("Adding Ingress: %v", addIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remIng := obj.(*extensions.Ingress)
+			if !isNginxIngress(remIng) {
+				return
+			}
 			glog.V(3).Infof("Removing Ingress: %v", remIng.Name)
 			lbc.ingQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
+			curIng := cur.(*extensions.Ingress)
+			if !isNginxIngress(curIng) {
+				return
+			}
 			if !reflect.DeepEqual(old, cur) {
-				glog.V(3).Infof("Ingress %v changed, syncing",
-					cur.(*extensions.Ingress).Name)
+				glog.V(3).Infof("Ingress %v changed, syncing", curIng.Name)
 				lbc.ingQueue.enqueue(cur)
 			}
 		},
@@ -439,4 +454,12 @@ func parseNginxConfigMaps(nginxConfigMaps string) (string, string, error) {
 		return "", "", fmt.Errorf("NGINX configmaps name must follow the format <namespace>/<name>, got: %v", nginxConfigMaps)
 	}
 	return res[0], res[1], nil
+}
+
+func isNginxIngress(ing *extensions.Ingress) bool {
+	if class, exists := ing.Annotations[ingressClassKey]; exists {
+		return class == nginxIngressClass || class == ""
+	}
+
+	return true
 }
