@@ -26,11 +26,14 @@ import (
 
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx"
 	"k8s.io/kubernetes/pkg/api"
+	podutil "k8s.io/kubernetes/pkg/api/pod"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/cache"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/controller/framework"
+	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/intstr"
 	"k8s.io/kubernetes/pkg/watch"
 )
 
@@ -384,13 +387,13 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		ingEx.Secrets[secretName] = secret
 	}
 
-	ingEx.Endpoints = make(map[string]*api.Endpoints)
+	ingEx.Endpoints = make(map[string][]string)
 	if ing.Spec.Backend != nil {
 		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
 		if err != nil {
-			glog.V(3).Infof("Error retrieving endpoints for the services %v: %v", ing.Spec.Backend.ServiceName, err)
+			glog.Warningf("Error retrieving endpoints for the service %v: %v", ing.Spec.Backend.ServiceName, err)
 		} else {
-			ingEx.Endpoints[ing.Spec.Backend.ServiceName] = endps
+			ingEx.Endpoints[ing.Spec.Backend.ServiceName+ing.Spec.Backend.ServicePort.String()] = endps
 		}
 	}
 
@@ -402,35 +405,113 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		for _, path := range rule.HTTP.Paths {
 			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
-				glog.V(3).Infof("Error retrieving endpoints for the services %v: %v", path.Backend.ServiceName, err)
+				glog.Warningf("Error retrieving endpoints for the service %v: %v", path.Backend.ServiceName, err)
 			} else {
-				ingEx.Endpoints[path.Backend.ServiceName] = endps
+				ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()] = endps
 			}
-
 		}
 	}
 
 	return ingEx
 }
 
-func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api.Endpoints, error) {
+func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extensions.IngressBackend, namespace string) ([]string, error) {
+	svc, err := lbc.getServiceForIngressBackend(backend, namespace)
+	if err != nil {
+		glog.V(3).Infof("Error getting service %v: %v", backend.ServiceName, err)
+		return nil, err
+	}
+
+	endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+	if err != nil {
+		glog.V(3).Infof("Error getting endpoints for service %s from the cache: %v", svc.Name, err)
+		return nil, err
+	}
+
+	result, err := lbc.getEndpointsForPort(endps, backend.ServicePort, svc)
+	if err != nil {
+		glog.V(3).Infof("Error getting endpoints for service %s port %v: %v", svc.Name, backend.ServicePort, err)
+		return nil, err
+	}
+	return result, nil
+}
+
+func (lbc *LoadBalancerController) getEndpointsForPort(endps api.Endpoints, ingSvcPort intstr.IntOrString, svc *api.Service) ([]string, error) {
+	var targetPort int
+	var err error
+	found := false
+
+	for _, port := range svc.Spec.Ports {
+		if (ingSvcPort.Type == intstr.Int && port.Port == ingSvcPort.IntValue()) || (ingSvcPort.Type == intstr.String && port.Name == ingSvcPort.String()) {
+			targetPort, err = lbc.getTargetPort(&port, svc)
+			if err != nil {
+				return nil, fmt.Errorf("Error determining target port for port %v in Ingress: %v", ingSvcPort, err)
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("No port %v in service %s", ingSvcPort, svc.Name)
+	}
+
+	for _, subset := range endps.Subsets {
+		for _, port := range subset.Ports {
+			if port.Port == targetPort {
+				var endpoints []string
+				for _, address := range subset.Addresses {
+					endpoint := fmt.Sprintf("%v:%v", address.IP, port.Port)
+					endpoints = append(endpoints, endpoint)
+				}
+				return endpoints, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("No endpoints for target port %v in service %s", targetPort, svc.Name)
+}
+
+func (lbc *LoadBalancerController) getTargetPort(svcPort *api.ServicePort, svc *api.Service) (int, error) {
+	if (svcPort.TargetPort == intstr.IntOrString{}) {
+		return svcPort.Port, nil
+	}
+
+	if svcPort.TargetPort.Type == intstr.Int {
+		return svcPort.TargetPort.IntValue(), nil
+	}
+
+	pods, err := lbc.client.Pods(svc.Namespace).List(api.ListOptions{LabelSelector: labels.Set(svc.Spec.Selector).AsSelector()})
+	if err != nil {
+		return 0, fmt.Errorf("Error getting pod information: %v", err)
+	}
+
+	if len(pods.Items) == 0 {
+		return 0, fmt.Errorf("No pods of service %s", svc.Name)
+	}
+
+	pod := &pods.Items[0]
+
+	portNum, err := podutil.FindPort(pod, svcPort)
+	if err != nil {
+		return 0, fmt.Errorf("Error finding named port %v in pod %s: %v", svcPort, pod.Name, err)
+	}
+
+	return portNum, nil
+}
+
+func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api.Service, error) {
 	svcKey := namespace + "/" + backend.ServiceName
 	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
 	if err != nil {
-		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
 		return nil, err
 	}
-	if svcExists {
-		svc := svcObj.(*api.Service)
-		endps, err := lbc.endpLister.GetServiceEndpoints(svc)
-		if err != nil {
-			glog.V(3).Infof("error getting endpoints for service %v from the cache: %v", svc, err)
-			return nil, err
-		}
-		return &endps, nil
-	}
-	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 
+	if svcExists {
+		return svcObj.(*api.Service), nil
+	}
+
+	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 }
 
 func parseNginxConfigMaps(nginxConfigMaps string) (string, string, error) {
