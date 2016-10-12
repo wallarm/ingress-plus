@@ -203,9 +203,13 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool)
 func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string) Upstream {
 	ups := NewUpstreamWithDefaultServer(name)
 
-	endps, exists := ingEx.Endpoints[backend.ServiceName]
+	endps, exists := ingEx.Endpoints[backend.ServiceName+backend.ServicePort.String()]
 	if exists {
-		upsServers := endpointsToUpstreamServers(*endps, backend.ServicePort.IntValue())
+		var upsServers []UpstreamServer
+		for _, endp := range endps {
+			addressport := strings.Split(endp, ":")
+			upsServers = append(upsServers, UpstreamServer{addressport[0], addressport[1]})
+		}
 		if len(upsServers) > 0 {
 			ups.UpstreamServers = upsServers
 		}
@@ -219,23 +223,6 @@ func pathOrDefault(path string) string {
 		return "/"
 	}
 	return path
-}
-
-func endpointsToUpstreamServers(endps api.Endpoints, servicePort int) []UpstreamServer {
-	var upsServers []UpstreamServer
-	for _, subset := range endps.Subsets {
-		for _, port := range subset.Ports {
-			if port.Port == servicePort {
-				for _, address := range subset.Addresses {
-					ups := UpstreamServer{Address: address.IP, Port: fmt.Sprintf("%v", servicePort)}
-					upsServers = append(upsServers, ups)
-				}
-				break
-			}
-		}
-	}
-
-	return upsServers
 }
 
 func getNameForUpstream(ing *extensions.Ingress, host string, service string) string {

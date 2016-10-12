@@ -8,5 +8,5 @@ import "k8s.io/kubernetes/pkg/apis/extensions"
 type IngressEx struct {
 	Ingress   *extensions.Ingress
 	Secrets   map[string]*api.Secret
-	Endpoints map[string]*api.Endpoints
+	Endpoints map[string][]string
 }

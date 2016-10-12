@@ -255,23 +255,6 @@ func pathOrDefault(path string) string {
 	return path
 }
 
-func endpointsToUpstreamServers(endps api.Endpoints, servicePort int) []UpstreamServer {
-	var upsServers []UpstreamServer
-	for _, subset := range endps.Subsets {
-		for _, port := range subset.Ports {
-			if port.Port == servicePort {
-				for _, address := range subset.Addresses {
-					ups := UpstreamServer{Address: address.IP, Port: fmt.Sprintf("%v", servicePort)}
-					upsServers = append(upsServers, ups)
-				}
-				break
-			}
-		}
-	}
-
-	return upsServers
-}
-
 func getNameForUpstream(ing *extensions.Ingress, host string, service string) string {
 	return fmt.Sprintf("%v-%v-%v-%v", ing.Namespace, ing.Name, host, service)
 }
@@ -308,10 +291,9 @@ func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) {
 func (cnf *Configurator) updateEndpoints(name string, ingEx *IngressEx) {
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName]
+		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName+ingEx.Ingress.Spec.Backend.ServicePort.String()]
 		if exists {
-			endpoints := getEndpointsList(endps, ingEx.Ingress.Spec.Backend.ServicePort.IntValue())
-			err := cnf.nginxAPI.UpdateServers(name, endpoints)
+			err := cnf.nginxAPI.UpdateServers(name, endps)
 			if err != nil {
 				glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
 			}
@@ -323,33 +305,15 @@ func (cnf *Configurator) updateEndpoints(name string, ingEx *IngressEx) {
 		}
 		for _, path := range rule.HTTP.Paths {
 			name := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
-			endps, exists := ingEx.Endpoints[path.Backend.ServiceName]
+			endps, exists := ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()]
 			if exists {
-				endpoints := getEndpointsList(endps, path.Backend.ServicePort.IntValue())
-				err := cnf.nginxAPI.UpdateServers(name, endpoints)
+				err := cnf.nginxAPI.UpdateServers(name, endps)
 				if err != nil {
 					glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
 				}
 			}
 		}
 	}
-}
-
-func getEndpointsList(endps *api.Endpoints, servicePort int) []string {
-	var result []string
-
-	for _, subset := range endps.Subsets {
-		for _, port := range subset.Ports {
-			if port.Port == servicePort {
-				for _, address := range subset.Addresses {
-					result = append(result, fmt.Sprintf("%v:%v", address.IP, servicePort))
-				}
-				break
-			}
-		}
-	}
-
-	return result
 }
 
 // UpdateConfig updates NGINX Configuration parameters
