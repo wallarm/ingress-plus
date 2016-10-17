@@ -13,6 +13,9 @@ import (
 )
 
 var (
+	// Set during build
+	version string
+
 	proxyURL = flag.String("proxy", "",
 		`If specified, the controller assumes a kubctl proxy server is running on the
 		given url and creates a proxy client. Regenerated NGINX configuration files
@@ -30,6 +33,8 @@ var (
 
 func main() {
 	flag.Parse()
+
+	glog.Infof("Starting NGINX Plus Ingress controller Version %v\n", version)
 
 	var kubeClient *client.Client
 	var local = false
