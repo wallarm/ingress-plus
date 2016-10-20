@@ -14,7 +14,7 @@ spec:
         app: nginx-plus-ingress
     spec:
       containers:
-      - image: nginx-plus-ingress:0.3
+      - image: nginx-plus-ingress:0.4.0
         imagePullPolicy: Always
         name: nginx-plus-ingress
         ports:
