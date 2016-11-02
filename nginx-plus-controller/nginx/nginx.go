@@ -76,6 +76,7 @@ type Location struct {
 	ProxyReadTimeout    string
 	ClientMaxBodySize   string
 	Websocket           bool
+	SSL                 bool
 }
 
 // NginxMainConfig describe the main NGINX configuration file

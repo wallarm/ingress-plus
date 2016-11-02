@@ -80,6 +80,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	upstreams := make(map[string]Upstream)
 
 	wsServices := getWebsocketServices(ingEx)
+	sslServices := getSSLServices(ingEx)
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
@@ -119,7 +120,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 				upstreams[upsName] = upstream
 			}
 
-			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg, wsServices[path.Backend.ServiceName])
+			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg, wsServices[path.Backend.ServiceName], sslServices[path.Backend.ServiceName])
 			locations = append(locations, loc)
 
 			if loc.Path == "/" {
@@ -129,7 +130,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		if rootLocation == false && ingEx.Ingress.Spec.Backend != nil {
 			upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName])
+			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], sslServices[ingEx.Ingress.Spec.Backend.ServiceName])
 			locations = append(locations, loc)
 		}
 
@@ -150,7 +151,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 
-		loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName])
+		loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], sslServices[ingEx.Ingress.Spec.Backend.ServiceName])
 		locations = append(locations, loc)
 
 		server.Locations = locations
@@ -187,7 +188,19 @@ func getWebsocketServices(ingEx *IngressEx) map[string]bool {
 	return wsServices
 }
 
-func createLocation(path string, upstream Upstream, cfg *Config, websocket bool) Location {
+func getSSLServices(ingEx *IngressEx) map[string]bool {
+	sslServices := make(map[string]bool)
+
+	if services, exists := ingEx.Ingress.Annotations["nginx.org/ssl-services"]; exists {
+		for _, svc := range strings.Split(services, ",") {
+			sslServices[svc] = true
+		}
+	}
+
+	return sslServices
+}
+
+func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, ssl bool) Location {
 	loc := Location{
 		Path:                path,
 		Upstream:            upstream,
@@ -195,6 +208,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool)
 		ProxyReadTimeout:    cfg.ProxyReadTimeout,
 		ClientMaxBodySize:   cfg.ClientMaxBodySize,
 		Websocket:           websocket,
+		SSL:                 ssl,
 	}
 
 	return loc
