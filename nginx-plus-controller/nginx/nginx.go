@@ -76,6 +76,7 @@ type Location struct {
 	ProxyReadTimeout    string
 	ClientMaxBodySize   string
 	Websocket           bool
+	Rewrite             string
 	SSL                 bool
 }
 
