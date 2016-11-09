@@ -27,17 +27,18 @@ We build the image using the make utility. The **Makefile** we provide has the f
 
 The **Makefile** contains the following main variables, which you should customize (either by changing the Makefile or by overriding the variables in the make command):
 * **PREFIX** -- the name of the image. For example, `nginx-ingress`
-* **TAG** -- the tag added to the image. For example, `0.3`
-* **PUSH_TO_GCR** . If you’re running your Kubernetes in GCE and using Google Container Registry, make sure that `PUSH_TO_GCR = 1`. This means using the `gcloud docker push` command to push the image, which is convenient when pushing images to GCR. By default, the variable is unset and the regular `docker push` command is used to push the image to the registry.
+* **VERSION** -- the current version of the controller.
+* **TAG** -- the tag added to the image. It's set to the value of the `VERSION` variable by default.
+* **PUSH_TO_GCR**. If you’re running your Kubernetes in GCE and using Google Container Registry, make sure that `PUSH_TO_GCR = 1`. This means using the `gcloud docker push` command to push the image, which is convenient when pushing images to GCR. By default, the variable is unset and the regular `docker push` command is used to push the image to the registry.
 
 Let’s create the controller binary, build an image and push the image to the private registry. Make sure to run the `docker login` command first to login to the registry. If you’re using Google Container Registry, as we are in our example here, you don’t need to use the docker command to login. However, make sure you’re logged into the gcloud tool (using the `gcloud auth login` command). 
 
 In this folder we run the following commands in the shell:
 ```
 $ make clean
-$ make PREFIX=gcr.io/my-k8s-project/nginx-ingress TAG=0.3 PUSH_TO_GCR=1
+$ make PREFIX=gcr.io/my-k8s-project/nginx-ingress TAG=latest PUSH_TO_GCR=1
 ```
 
-Where **my-k8s-project** is the name of the GCE project where we run our Kubernetes cluster. As the result, the image -- **gcr.io/my-k8s-project/nginx-ingress:0.3** --  is built and pushed to the registry.
+Where **my-k8s-project** is the name of the GCE project where we run our Kubernetes cluster. As the result, the image -- **gcr.io/my-k8s-project/nginx-ingress:latest** --  is built and pushed to the registry.
 
 By default, to compile the controller we use the [golang](https://hub.docker.com/_/golang/) container that we run as part of the building process. If you want to compile the controller using your local golang environment, specify `BUILD_IN_CONTAINER=0` when you run the make command.

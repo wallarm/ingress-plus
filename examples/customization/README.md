@@ -10,7 +10,7 @@ NGINX directives:
 
 ## Using ConfigMaps
 
-1. Make sure that you specify the configmaps resource to use when you start an Ingress Controller.
+1. Make sure that you specify the configmaps resource to use when you start an Ingress controller.
 For example, `-nginx-configmaps=default/nginx-config`, where we specify
 the config map to use with the following format: `<namespace>/<name>`. See [nginx-ingress-rc.yaml](../complete-example/nginx-ingress-rc.yaml) or
 [nginx-plus-ingress-rc.yaml](../complete-example/nginx-plus-ingress-rc.yaml) files.
