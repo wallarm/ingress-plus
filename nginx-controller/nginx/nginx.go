@@ -43,6 +43,7 @@ type Server struct {
 	SSL               bool
 	SSLCertificate    string
 	SSLCertificateKey string
+	HTTP2             bool
 }
 
 // Location describes an NGINX location

@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -102,7 +103,10 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 		}
 
-		server := Server{Name: serverName}
+		server := Server{
+			Name:  serverName,
+			HTTP2: ingCfg.HTTP2,
+		}
 
 		if pemFile, ok := pems[serverName]; ok {
 			server.SSL = true
@@ -140,7 +144,10 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	}
 
 	if len(ingEx.Ingress.Spec.Rules) == 0 && ingEx.Ingress.Spec.Backend != nil {
-		server := Server{Name: emptyHost}
+		server := Server{
+			Name:  emptyHost,
+			HTTP2: ingCfg.HTTP2,
+		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
 			server.SSL = true
@@ -173,7 +180,13 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
 	}
-
+	if HTTP2Str, exists := ingEx.Ingress.Annotations["nginx.org/http2"]; exists {
+		if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
+			ingCfg.HTTP2 = HTTP2
+		} else {
+			glog.Errorf("In %v/%v nginx.org/http2 contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+		}
+	}
 	return ingCfg
 }
 
