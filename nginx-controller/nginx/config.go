@@ -5,6 +5,7 @@ type Config struct {
 	ProxyConnectTimeout           string
 	ProxyReadTimeout              string
 	ClientMaxBodySize             string
+	HTTP2                         bool
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string
 }

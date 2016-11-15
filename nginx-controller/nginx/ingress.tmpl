@@ -8,7 +8,7 @@ upstream {{$upstream.Name}} {
 server {
 	listen 80;
 	{{if $server.SSL}}
-	listen 443 ssl;
+	listen 443 ssl{{if $server.HTTP2}} http2{{end}};
 	ssl_certificate {{$server.SSLCertificate}};
 	ssl_certificate_key {{$server.SSLCertificateKey}};
 	{{end}}

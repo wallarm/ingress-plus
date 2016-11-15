@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -320,6 +321,13 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		}
 		if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
 			cfg.MainServerNamesHashMaxSize = serverNamesHashMaxSize
+		}
+		if HTTP2Str, exists := cfgm.Data["http2"]; exists {
+			if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
+				cfg.HTTP2 = HTTP2
+			} else {
+				glog.Errorf("In configmap %v/%v 'http2' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
+			}
 		}
 	}
 	lbc.cnf.UpdateConfig(cfg)
