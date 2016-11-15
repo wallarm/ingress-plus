@@ -187,6 +187,22 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 			glog.Errorf("In %v/%v nginx.org/http2 contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 	}
+	if proxyBufferingStr, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffering"]; exists {
+		if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
+			ingCfg.ProxyBuffering = ProxyBuffering
+		} else {
+			glog.Errorf("In %v/%v nginx.org/proxy-buffering contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+		}
+	}
+	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
+		ingCfg.ProxyBuffers = proxyBuffers
+	}
+	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
+		ingCfg.ProxyBufferSize = proxyBufferSize
+	}
+	if proxyMaxTempFileSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-max-temp-file-size"]; exists {
+		ingCfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	}
 	return ingCfg
 }
 
@@ -252,14 +268,18 @@ func getSSLServices(ingEx *IngressEx) map[string]bool {
 
 func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool) Location {
 	loc := Location{
-		Path:                path,
-		Upstream:            upstream,
-		ProxyConnectTimeout: cfg.ProxyConnectTimeout,
-		ProxyReadTimeout:    cfg.ProxyReadTimeout,
-		ClientMaxBodySize:   cfg.ClientMaxBodySize,
-		Websocket:           websocket,
-		Rewrite:             rewrite,
-		SSL:                 ssl,
+		Path:                 path,
+		Upstream:             upstream,
+		ProxyConnectTimeout:  cfg.ProxyConnectTimeout,
+		ProxyReadTimeout:     cfg.ProxyReadTimeout,
+		ClientMaxBodySize:    cfg.ClientMaxBodySize,
+		Websocket:            websocket,
+		Rewrite:              rewrite,
+		SSL:                  ssl,
+		ProxyBuffering:       cfg.ProxyBuffering,
+		ProxyBuffers:         cfg.ProxyBuffers,
+		ProxyBufferSize:      cfg.ProxyBufferSize,
+		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 	}
 
 	return loc

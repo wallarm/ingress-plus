@@ -332,6 +332,22 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
+		if proxyBufferingStr, exists := cfgm.Data["proxy-buffering"]; exists {
+			if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
+				cfg.ProxyBuffering = ProxyBuffering
+			} else {
+				glog.Errorf("In configmap %v/%v 'proxy-buffering' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
+			}
+		}
+		if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
+			cfg.ProxyBuffers = proxyBuffers
+		}
+		if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
+			cfg.ProxyBufferSize = proxyBufferSize
+		}
+		if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
+			cfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
+		}
 	}
 	lbc.cnf.UpdateConfig(cfg)
 
