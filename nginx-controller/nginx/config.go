@@ -8,6 +8,7 @@ type Config struct {
 	HTTP2                         bool
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string
+	MainLogFormat                 string
 }
 
 // NewDefaultConfig creates a Config with default values
