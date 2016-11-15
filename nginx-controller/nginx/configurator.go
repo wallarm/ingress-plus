@@ -329,6 +329,7 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 	mainCfg := &NginxMainConfig{
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
+		LogFormat:                 config.MainLogFormat,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

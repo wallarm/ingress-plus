@@ -3,7 +3,7 @@ package nginx
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	"text/template"
 	"os"
 	"os/exec"
 	"path"
@@ -62,6 +62,7 @@ type Location struct {
 type NginxMainConfig struct {
 	ServerNamesHashBucketSize string
 	ServerNamesHashMaxSize    string
+	LogFormat                 string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.

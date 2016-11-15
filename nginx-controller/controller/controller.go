@@ -329,6 +329,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 				glog.Errorf("In configmap %v/%v 'http2' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
 			}
 		}
+		if logFormat, exists := cfgm.Data["log-format"]; exists {
+			cfg.MainLogFormat = logFormat
+		}
 	}
 	lbc.cnf.UpdateConfig(cfg)
 
