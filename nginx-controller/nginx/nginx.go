@@ -48,14 +48,18 @@ type Server struct {
 
 // Location describes an NGINX location
 type Location struct {
-	Path                string
-	Upstream            Upstream
-	ProxyConnectTimeout string
-	ProxyReadTimeout    string
-	ClientMaxBodySize   string
-	Websocket           bool
-	Rewrite             string
-	SSL                 bool
+	Path                 string
+	Upstream             Upstream
+	ProxyConnectTimeout  string
+	ProxyReadTimeout     string
+	ClientMaxBodySize    string
+	Websocket            bool
+	Rewrite              string
+	SSL                  bool
+	ProxyBuffering       bool
+	ProxyBuffers         string
+	ProxyBufferSize      string
+	ProxyMaxTempFileSize string
 }
 
 // NginxMainConfig describe the main NGINX configuration file
