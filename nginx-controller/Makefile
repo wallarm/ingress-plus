@@ -6,6 +6,7 @@ PREFIX = nginxdemos/nginx-ingress
 
 DOCKER_RUN = docker run --rm -v $(shell pwd)/../:/go/src/github.com/nginxinc/kubernetes-ingress -w /go/src/github.com/nginxinc/kubernetes-ingress/nginx-controller/
 GOLANG_CONTAINER = golang:1.6
+DOCKERFILE = Dockerfile
 
 BUILD_IN_CONTAINER = 1
 PUSH_TO_GCR =
@@ -29,7 +30,7 @@ else
 endif
 
 container: test nginx-ingress
-	docker build -t $(PREFIX):$(TAG) .
+	docker build -f $(DOCKERFILE) -t $(PREFIX):$(TAG) .
 
 push: container
 	$(GCLOUD) docker push $(PREFIX):$(TAG)

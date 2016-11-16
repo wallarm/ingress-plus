@@ -30,8 +30,11 @@ The **Makefile** contains the following main variables, which you should customi
 * **VERSION** -- the current version of the controller.
 * **TAG** -- the tag added to the image. It's set to the value of the `VERSION` variable by default.
 * **PUSH_TO_GCR**. If you’re running your Kubernetes in GCE and using Google Container Registry, make sure that `PUSH_TO_GCR = 1`. This means using the `gcloud docker push` command to push the image, which is convenient when pushing images to GCR. By default, the variable is unset and the regular `docker push` command is used to push the image to the registry.
+* **DOCKERFILE** -- the path to a Dockerfile. We provide two Dockerfiles:
+  1. `Dockerfile`, for building a debian-based image. It's used by default.
+  1. `DockerfileForAlpine`, for building an alpine-based image.
 
-Let’s create the controller binary, build an image and push the image to the private registry. Make sure to run the `docker login` command first to login to the registry. If you’re using Google Container Registry, as we are in our example here, you don’t need to use the docker command to login. However, make sure you’re logged into the gcloud tool (using the `gcloud auth login` command). 
+Let’s create the controller binary, build an image and push the image to the private registry. Make sure to run the `docker login` command first to login to the registry. If you’re using Google Container Registry, as we are in our example here, you don’t need to use the docker command to login. However, make sure you’re logged into the gcloud tool (using the `gcloud auth login` command).
 
 In this folder we run the following commands in the shell:
 ```
