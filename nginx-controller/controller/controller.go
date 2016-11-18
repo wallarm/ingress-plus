@@ -353,6 +353,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 
 	ings, _ := lbc.ingLister.List()
 	for _, ing := range ings.Items {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
@@ -385,6 +388,9 @@ func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
 	svc := obj.(*api.Service)
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
