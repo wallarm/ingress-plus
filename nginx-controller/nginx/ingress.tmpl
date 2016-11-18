@@ -21,7 +21,9 @@ server {
 	if ($scheme = http) {
 		return 301 https://$host$request_uri;
 	}
-	{{end}}
+	{{- if $server.HSTS}}
+	add_header Strict-Transport-Security "max-age={{$server.HSTSMaxAge}}; {{if $server.HSTSIncludeSubdomains}}includeSubDomains; {{end}}preload" always;{{end}}
+	{{- end}}
 
 	{{range $location := $server.Locations}}
 	location {{$location.Path}} {

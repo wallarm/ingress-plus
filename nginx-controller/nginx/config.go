@@ -13,6 +13,9 @@ type Config struct {
 	ProxyBuffers                  string
 	ProxyBufferSize               string
 	ProxyMaxTempFileSize          string
+	HSTS                          bool
+	HSTSMaxAge                    int64
+	HSTSIncludeSubdomains         bool
 }
 
 // NewDefaultConfig creates a Config with default values
@@ -23,5 +26,6 @@ func NewDefaultConfig() *Config {
 		ClientMaxBodySize:          "1m",
 		MainServerNamesHashMaxSize: "512",
 		ProxyBuffering:             true,
+		HSTSMaxAge:                 2592000,
 	}
 }

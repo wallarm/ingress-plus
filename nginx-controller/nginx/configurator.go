@@ -2,7 +2,6 @@ package nginx
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -104,8 +103,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		}
 
 		server := Server{
-			Name:  serverName,
-			HTTP2: ingCfg.HTTP2,
+			Name:                  serverName,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -145,8 +147,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	if len(ingEx.Ingress.Spec.Rules) == 0 && ingEx.Ingress.Spec.Backend != nil {
 		server := Server{
-			Name:  emptyHost,
-			HTTP2: ingCfg.HTTP2,
+			Name:                  emptyHost,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
@@ -180,19 +185,35 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
 	}
-	if HTTP2Str, exists := ingEx.Ingress.Annotations["nginx.org/http2"]; exists {
-		if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
-			ingCfg.HTTP2 = HTTP2
-		} else {
-			glog.Errorf("In %v/%v nginx.org/http2 contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
-		}
+	HTTP2, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/http2", ingEx.Ingress)
+	if err != nil && err != ErrorKeyNotFound {
+		glog.Error(err)
+	} else {
+		ingCfg.HTTP2 = HTTP2
 	}
-	if proxyBufferingStr, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffering"]; exists {
-		if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
-			ingCfg.ProxyBuffering = ProxyBuffering
-		} else {
-			glog.Errorf("In %v/%v nginx.org/proxy-buffering contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
-		}
+	ProxyBuffering, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress)
+	if err != nil && err != ErrorKeyNotFound {
+		glog.Error(err)
+	} else {
+		ingCfg.ProxyBuffering = ProxyBuffering
+	}
+	HSTS, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts", ingEx.Ingress)
+	if err != nil && err != ErrorKeyNotFound {
+		glog.Error(err)
+	} else {
+		ingCfg.HSTS = HSTS
+	}
+	HSTSMaxAge, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/hsts-max-age", ingEx.Ingress)
+	if err != nil && err != ErrorKeyNotFound {
+		glog.Error(err)
+	} else {
+		ingCfg.HSTSMaxAge = HSTSMaxAge
+	}
+	HSTSIncludeSubdomains, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-include-subdomains", ingEx.Ingress)
+	if err != nil && err != ErrorKeyNotFound {
+		glog.Error(err)
+	} else {
+		ingCfg.HSTSIncludeSubdomains = HSTSIncludeSubdomains
 	}
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
 		ingCfg.ProxyBuffers = proxyBuffers
