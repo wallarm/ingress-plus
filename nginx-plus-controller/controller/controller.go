@@ -284,6 +284,9 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
+			if !isNginxIngress(&ing) {
+				continue
+			}
 			ingEx := lbc.createIngress(&ing)
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
