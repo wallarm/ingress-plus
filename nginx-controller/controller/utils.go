@@ -59,6 +59,14 @@ func (t *taskQueue) requeue(key string, err error) {
 	t.queue.Add(key)
 }
 
+func (t *taskQueue) requeueAfter(key string, err error, after time.Duration) {
+	glog.Errorf("Requeuing %v after %s, err %v", key, after.String(), err)
+	go func(key string, after time.Duration) {
+		time.Sleep(after)
+		t.queue.Add(key)
+	}(key, after)
+}
+
 // worker processes work in the queue through sync.
 func (t *taskQueue) worker() {
 	for {
