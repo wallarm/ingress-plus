@@ -284,6 +284,9 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
+			if !isNginxIngress(&ing) {
+				continue
+			}
 			ingEx := lbc.createIngress(&ing)
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
@@ -326,6 +329,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 
 	ings, _ := lbc.ingLister.List()
 	for _, ing := range ings.Items {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
@@ -358,6 +364,9 @@ func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
 	svc := obj.(*api.Service)
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
