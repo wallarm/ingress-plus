@@ -19,7 +19,6 @@ package controller
 import (
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -325,22 +324,46 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
 			cfg.MainServerNamesHashMaxSize = serverNamesHashMaxSize
 		}
-		if HTTP2Str, exists := cfgm.Data["http2"]; exists {
-			if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
-				cfg.HTTP2 = HTTP2
-			} else {
-				glog.Errorf("In configmap %v/%v 'http2' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
-			}
+		HTTP2, err := nginx.GetMapKeyAsBool(cfgm.Data, "http2", cfgm)
+		if err != nil && err != nginx.ErrorKeyNotFound {
+			glog.Error(err)
+		} else {
+			cfg.HTTP2 = HTTP2
 		}
+
+		// HSTS block
+		HSTSErrors := false
+		HSTS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm)
+		if err != nil && err != nginx.ErrorKeyNotFound {
+			glog.Error(err)
+			HSTSErrors = true
+		}
+		HSTSMaxAge, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
+		if err != nil && err != nginx.ErrorKeyNotFound {
+			glog.Error(err)
+			HSTSErrors = true
+		}
+		HSTSIncludeSubdomains, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
+		if err != nil && err != nginx.ErrorKeyNotFound {
+			glog.Error(err)
+			HSTSErrors = true
+		}
+		if HSTSErrors {
+			glog.Warningf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
+		} else {
+			cfg.HSTS = HSTS
+			cfg.HSTSMaxAge = HSTSMaxAge
+			cfg.HSTSIncludeSubdomains = HSTSIncludeSubdomains
+		}
+
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
-		if proxyBufferingStr, exists := cfgm.Data["proxy-buffering"]; exists {
-			if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
-				cfg.ProxyBuffering = ProxyBuffering
-			} else {
-				glog.Errorf("In configmap %v/%v 'proxy-buffering' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
-			}
+		ProxyBuffering, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm)
+		if err != nil && err != nginx.ErrorKeyNotFound {
+			glog.Error(err)
+		} else {
+			cfg.ProxyBuffering = ProxyBuffering
 		}
 		if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
 			cfg.ProxyBuffers = proxyBuffers
