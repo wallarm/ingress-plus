@@ -197,24 +197,32 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	} else {
 		ingCfg.ProxyBuffering = ProxyBuffering
 	}
+
+	// HSTS block
+	HSTSErrors := false
 	HSTS, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts", ingEx.Ingress)
 	if err != nil && err != ErrorKeyNotFound {
 		glog.Error(err)
-	} else {
-		ingCfg.HSTS = HSTS
+		HSTSErrors = true
 	}
 	HSTSMaxAge, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/hsts-max-age", ingEx.Ingress)
 	if err != nil && err != ErrorKeyNotFound {
 		glog.Error(err)
-	} else {
-		ingCfg.HSTSMaxAge = HSTSMaxAge
+		HSTSErrors = true
 	}
 	HSTSIncludeSubdomains, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-include-subdomains", ingEx.Ingress)
 	if err != nil && err != ErrorKeyNotFound {
 		glog.Error(err)
+		HSTSErrors = true
+	}
+	if HSTSErrors {
+		glog.Warningf("Ingress %s/%s: There are configuration issues with hsts annotations, skipping annotions for all hsts settings", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
 	} else {
+		ingCfg.HSTS = HSTS
+		ingCfg.HSTSMaxAge = HSTSMaxAge
 		ingCfg.HSTSIncludeSubdomains = HSTSIncludeSubdomains
 	}
+
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
 		ingCfg.ProxyBuffers = proxyBuffers
 	}

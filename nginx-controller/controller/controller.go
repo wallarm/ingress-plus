@@ -327,24 +327,32 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		} else {
 			cfg.HTTP2 = HTTP2
 		}
+
+		// HSTS block
+		HSTSErrors := false
 		HSTS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm)
 		if err != nil && err != nginx.ErrorKeyNotFound {
 			glog.Error(err)
-		} else {
-			cfg.HSTS = HSTS
+			HSTSErrors = true
 		}
 		HSTSMaxAge, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
 		if err != nil && err != nginx.ErrorKeyNotFound {
 			glog.Error(err)
-		} else {
-			cfg.HSTSMaxAge = HSTSMaxAge
+			HSTSErrors = true
 		}
 		HSTSIncludeSubdomains, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
 		if err != nil && err != nginx.ErrorKeyNotFound {
 			glog.Error(err)
+			HSTSErrors = true
+		}
+		if HSTSErrors {
+			glog.Warningf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
 		} else {
+			cfg.HSTS = HSTS
+			cfg.HSTSMaxAge = HSTSMaxAge
 			cfg.HSTSIncludeSubdomains = HSTSIncludeSubdomains
 		}
+
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
