@@ -11,7 +11,7 @@ upstream {{$upstream.Name}} {
 server {
 	listen 80;
 	{{if $server.SSL}}
-	listen 443 ssl;
+	listen 443 ssl{{if $server.HTTP2}} http2{{end}};
 	ssl_certificate {{$server.SSLCertificate}};
 	ssl_certificate_key {{$server.SSLCertificateKey}};
 	{{end}}
@@ -26,7 +26,9 @@ server {
 	if ($scheme = http) {
 		return 301 https://$host$request_uri;
 	}
-	{{end}}
+	{{- if $server.HSTS}}
+	add_header Strict-Transport-Security "max-age={{$server.HSTSMaxAge}}; {{if $server.HSTSIncludeSubdomains}}includeSubDomains; {{end}}preload" always;{{end}}
+	{{- end}}
 
 	{{range $location := $server.Locations}}
 	location {{$location.Path}} {
@@ -44,6 +46,16 @@ server {
 		proxy_set_header X-Forwarded-Host $host;
 		proxy_set_header X-Forwarded-Port $server_port;
 		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
+		{{- if $location.ProxyBuffers}}
+		proxy_buffers {{$location.ProxyBuffers}};
+		{{- end}}
+		{{- if $location.ProxyBufferSize}}
+		proxy_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyMaxTempFileSize}}
+		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
+		{{- end}}
 		{{if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{else}}

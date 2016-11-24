@@ -3,10 +3,10 @@ package nginx
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"os"
 	"os/exec"
 	"path"
+	"text/template"
 
 	"github.com/golang/glog"
 )
@@ -60,30 +60,39 @@ type UpstreamServer struct {
 
 // Server describes an NGINX server
 type Server struct {
-	Name              string
-	StatusZone        string
-	Locations         []Location
-	SSL               bool
-	SSLCertificate    string
-	SSLCertificateKey string
+	Name                  string
+	Locations             []Location
+	SSL                   bool
+	SSLCertificate        string
+	SSLCertificateKey     string
+	StatusZone            string
+	HTTP2                 bool
+	HSTS                  bool
+	HSTSMaxAge            int64
+	HSTSIncludeSubdomains bool
 }
 
 // Location describes an NGINX location
 type Location struct {
-	Path                string
-	Upstream            Upstream
-	ProxyConnectTimeout string
-	ProxyReadTimeout    string
-	ClientMaxBodySize   string
-	Websocket           bool
-	Rewrite             string
-	SSL                 bool
+	Path                 string
+	Upstream             Upstream
+	ProxyConnectTimeout  string
+	ProxyReadTimeout     string
+	ClientMaxBodySize    string
+	Websocket            bool
+	Rewrite              string
+	SSL                  bool
+	ProxyBuffering       bool
+	ProxyBuffers         string
+	ProxyBufferSize      string
+	ProxyMaxTempFileSize string
 }
 
 // NginxMainConfig describe the main NGINX configuration file
 type NginxMainConfig struct {
 	ServerNamesHashBucketSize string
 	ServerNamesHashMaxSize    string
+	LogFormat                 string
 }
 
 // NewNginxController creates a NGINX controller
@@ -177,7 +186,7 @@ func (nginx *NginxController) getIngressNginxConfigFileName(name string) string 
 func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
 	tmpl, err := template.New("ingress.tmpl").ParseFiles("ingress.tmpl")
 	if err != nil {
-		glog.Fatal("Failed to parse template file")
+		glog.Fatalf("Failed to parse template file: %v", err)
 	}
 
 	glog.V(3).Infof("Writing NGINX conf to %v", filename)
