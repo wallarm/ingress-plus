@@ -1,17 +1,11 @@
 package nginx
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 
 	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/runtime"
-)
-
-var (
-	// ErrorKeyNotFound is returned if the key was not found in the map
-	ErrorKeyNotFound = errors.New("Key not found in map")
 )
 
 // There seems to be no composite interface in the kubernetes api package,
@@ -22,25 +16,25 @@ type apiObject interface {
 }
 
 // GetMapKeyAsBool searches the map for the given key and parses the key as bool
-func GetMapKeyAsBool(m map[string]string, key string, context apiObject) (bool, error) {
+func GetMapKeyAsBool(m map[string]string, key string, context apiObject) (bool, bool, error) {
 	if str, exists := m[key]; exists {
 		b, err := strconv.ParseBool(str)
 		if err != nil {
-			return false, fmt.Errorf("%s %v/%v '%s' contains invalid bool: %v, ignoring", context.GetObjectKind().GroupVersionKind().Kind, context.GetNamespace(), context.GetName(), key, err)
+			return false, exists, fmt.Errorf("%s %v/%v '%s' contains invalid bool: %v, ignoring", context.GetObjectKind().GroupVersionKind().Kind, context.GetNamespace(), context.GetName(), key, err)
 		}
-		return b, nil
+		return b, exists, nil
 	}
-	return false, ErrorKeyNotFound
+	return false, false, nil
 }
 
 // GetMapKeyAsInt tries to find and parse a key in a map as int64
-func GetMapKeyAsInt(m map[string]string, key string, context apiObject) (int64, error) {
+func GetMapKeyAsInt(m map[string]string, key string, context apiObject) (int64, bool, error) {
 	if str, exists := m[key]; exists {
 		i, err := strconv.ParseInt(str, 10, 64)
 		if err != nil {
-			return 0, fmt.Errorf("%s %v/%v '%s' contains invalid integer: %v, ignoring", context.GetObjectKind().GroupVersionKind().Kind, context.GetNamespace(), context.GetName(), key, err)
+			return 0, exists, fmt.Errorf("%s %v/%v '%s' contains invalid integer: %v, ignoring", context.GetObjectKind().GroupVersionKind().Kind, context.GetNamespace(), context.GetName(), key, err)
 		}
-		return i, nil
+		return i, exists, nil
 	}
-	return 0, ErrorKeyNotFound
+	return 0, false, nil
 }
