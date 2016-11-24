@@ -324,46 +324,55 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
 			cfg.MainServerNamesHashMaxSize = serverNamesHashMaxSize
 		}
-		HTTP2, err := nginx.GetMapKeyAsBool(cfgm.Data, "http2", cfgm)
-		if err != nil && err != nginx.ErrorKeyNotFound {
-			glog.Error(err)
-		} else {
-			cfg.HTTP2 = HTTP2
+		if HTTP2, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "http2", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.HTTP2 = HTTP2
+			}
 		}
 
 		// HSTS block
-		HSTSErrors := false
-		HSTS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm)
-		if err != nil && err != nginx.ErrorKeyNotFound {
-			glog.Error(err)
-			HSTSErrors = true
-		}
-		HSTSMaxAge, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
-		if err != nil && err != nginx.ErrorKeyNotFound {
-			glog.Error(err)
-			HSTSErrors = true
-		}
-		HSTSIncludeSubdomains, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
-		if err != nil && err != nginx.ErrorKeyNotFound {
-			glog.Error(err)
-			HSTSErrors = true
-		}
-		if HSTSErrors {
-			glog.Warningf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
-		} else {
-			cfg.HSTS = HSTS
-			cfg.HSTSMaxAge = HSTSMaxAge
-			cfg.HSTSIncludeSubdomains = HSTSIncludeSubdomains
+		if hsts, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				parsingErrors := false
+
+				hstsMaxAge, existsMA, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
+				if existsMA && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+				hstsIncludeSubdomains, existsIS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
+				if existsIS && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+
+				if parsingErrors {
+					glog.Errorf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
+				} else {
+					cfg.HSTS = hsts
+					if existsMA {
+						cfg.HSTSMaxAge = hstsMaxAge
+					}
+					if existsIS {
+						cfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+					}
+				}
+			}
 		}
 
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
-		ProxyBuffering, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm)
-		if err != nil && err != nginx.ErrorKeyNotFound {
-			glog.Error(err)
-		} else {
-			cfg.ProxyBuffering = ProxyBuffering
+		if proxyBuffering, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.ProxyBuffering = proxyBuffering
+			}
 		}
 		if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
 			cfg.ProxyBuffers = proxyBuffers
