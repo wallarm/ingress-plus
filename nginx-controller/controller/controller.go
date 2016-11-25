@@ -364,6 +364,33 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 			}
 		}
 
+		if proxyProtocol, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-protocol", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.ProxyProtocol = proxyProtocol
+			}
+		}
+
+		// ngx_http_realip_module
+		if realIPHeader, exists := cfgm.Data["real-ip-header"]; exists {
+			cfg.RealIPHeader = realIPHeader
+		}
+		if setRealIPFrom, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "set-real-ip-from", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.SetRealIPFrom = setRealIPFrom
+			}
+		}
+		if realIPRecursive, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "real-ip-recursive", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.RealIPRecursive = realIPRecursive
+			}
+		}
+
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}

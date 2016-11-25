@@ -44,9 +44,15 @@ type Server struct {
 	SSLCertificate        string
 	SSLCertificateKey     string
 	HTTP2                 bool
+	ProxyProtocol         bool
 	HSTS                  bool
 	HSTSMaxAge            int64
 	HSTSIncludeSubdomains bool
+
+	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
+	RealIPHeader    string
+	SetRealIPFrom   []string
+	RealIPRecursive bool
 }
 
 // Location describes an NGINX location
