@@ -3,10 +3,10 @@ package nginx
 import (
 	"bytes"
 	"fmt"
-	"text/template"
 	"os"
 	"os/exec"
 	"path"
+	"text/template"
 
 	"github.com/golang/glog"
 )
@@ -38,12 +38,15 @@ type UpstreamServer struct {
 
 // Server describes an NGINX server
 type Server struct {
-	Name              string
-	Locations         []Location
-	SSL               bool
-	SSLCertificate    string
-	SSLCertificateKey string
-	HTTP2             bool
+	Name                  string
+	Locations             []Location
+	SSL                   bool
+	SSLCertificate        string
+	SSLCertificateKey     string
+	HTTP2                 bool
+	HSTS                  bool
+	HSTSMaxAge            int64
+	HSTSIncludeSubdomains bool
 }
 
 // Location describes an NGINX location

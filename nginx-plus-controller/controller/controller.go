@@ -284,6 +284,9 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
+			if !isNginxIngress(&ing) {
+				continue
+			}
 			ingEx := lbc.createIngress(&ing)
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
@@ -321,11 +324,73 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
 			cfg.MainServerNamesHashMaxSize = serverNamesHashMaxSize
 		}
+		if HTTP2, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "http2", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.HTTP2 = HTTP2
+			}
+		}
+
+		// HSTS block
+		if hsts, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				parsingErrors := false
+
+				hstsMaxAge, existsMA, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
+				if existsMA && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+				hstsIncludeSubdomains, existsIS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
+				if existsIS && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+
+				if parsingErrors {
+					glog.Errorf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
+				} else {
+					cfg.HSTS = hsts
+					if existsMA {
+						cfg.HSTSMaxAge = hstsMaxAge
+					}
+					if existsIS {
+						cfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+					}
+				}
+			}
+		}
+
+		if logFormat, exists := cfgm.Data["log-format"]; exists {
+			cfg.MainLogFormat = logFormat
+		}
+		if proxyBuffering, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.ProxyBuffering = proxyBuffering
+			}
+		}
+		if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
+			cfg.ProxyBuffers = proxyBuffers
+		}
+		if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
+			cfg.ProxyBufferSize = proxyBufferSize
+		}
+		if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
+			cfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
+		}
 	}
 	lbc.cnf.UpdateConfig(cfg)
 
 	ings, _ := lbc.ingLister.List()
 	for _, ing := range ings.Items {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
@@ -358,6 +423,9 @@ func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
 	svc := obj.(*api.Service)
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }

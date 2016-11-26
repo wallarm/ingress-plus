@@ -2,7 +2,6 @@ package nginx
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -104,8 +103,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		}
 
 		server := Server{
-			Name:  serverName,
-			HTTP2: ingCfg.HTTP2,
+			Name:                  serverName,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -145,8 +147,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	if len(ingEx.Ingress.Spec.Rules) == 0 && ingEx.Ingress.Spec.Backend != nil {
 		server := Server{
-			Name:  emptyHost,
-			HTTP2: ingCfg.HTTP2,
+			Name:                  emptyHost,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
@@ -180,20 +185,52 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
 	}
-	if HTTP2Str, exists := ingEx.Ingress.Annotations["nginx.org/http2"]; exists {
-		if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
+	if HTTP2, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/http2", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
 			ingCfg.HTTP2 = HTTP2
-		} else {
-			glog.Errorf("In %v/%v nginx.org/http2 contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 	}
-	if proxyBufferingStr, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffering"]; exists {
-		if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
-			ingCfg.ProxyBuffering = ProxyBuffering
+	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
 		} else {
-			glog.Errorf("In %v/%v nginx.org/proxy-buffering contains invalid declaration: %v, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+			ingCfg.ProxyBuffering = proxyBuffering
 		}
 	}
+
+	if hsts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			parsingErrors := false
+
+			hstsMaxAge, existsMA, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/hsts-max-age", ingEx.Ingress)
+			if existsMA && err != nil {
+				glog.Error(err)
+				parsingErrors = true
+			}
+			hstsIncludeSubdomains, existsIS, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-include-subdomains", ingEx.Ingress)
+			if existsIS && err != nil {
+				glog.Error(err)
+				parsingErrors = true
+			}
+
+			if parsingErrors {
+				glog.Errorf("Ingress %s/%s: There are configuration issues with hsts annotations, skipping annotions for all hsts settings", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
+			} else {
+				ingCfg.HSTS = hsts
+				if existsMA {
+					ingCfg.HSTSMaxAge = hstsMaxAge
+				}
+				if existsIS {
+					ingCfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+				}
+			}
+		}
+	}
+
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
 		ingCfg.ProxyBuffers = proxyBuffers
 	}

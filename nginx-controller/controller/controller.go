@@ -19,7 +19,6 @@ package controller
 import (
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -285,6 +284,9 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
+			if !isNginxIngress(&ing) {
+				continue
+			}
 			ingEx, err := lbc.createIngress(&ing)
 			if err != nil {
 				lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
@@ -326,21 +328,54 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
 			cfg.MainServerNamesHashMaxSize = serverNamesHashMaxSize
 		}
-		if HTTP2Str, exists := cfgm.Data["http2"]; exists {
-			if HTTP2, err := strconv.ParseBool(HTTP2Str); err == nil {
-				cfg.HTTP2 = HTTP2
+		if HTTP2, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "http2", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
 			} else {
-				glog.Errorf("In configmap %v/%v 'http2' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
+				cfg.HTTP2 = HTTP2
 			}
 		}
+
+		// HSTS block
+		if hsts, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				parsingErrors := false
+
+				hstsMaxAge, existsMA, err := nginx.GetMapKeyAsInt(cfgm.Data, "hsts-max-age", cfgm)
+				if existsMA && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+				hstsIncludeSubdomains, existsIS, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts-include-subdomains", cfgm)
+				if existsIS && err != nil {
+					glog.Error(err)
+					parsingErrors = true
+				}
+
+				if parsingErrors {
+					glog.Errorf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
+				} else {
+					cfg.HSTS = hsts
+					if existsMA {
+						cfg.HSTSMaxAge = hstsMaxAge
+					}
+					if existsIS {
+						cfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+					}
+				}
+			}
+		}
+
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
-		if proxyBufferingStr, exists := cfgm.Data["proxy-buffering"]; exists {
-			if ProxyBuffering, err := strconv.ParseBool(proxyBufferingStr); err == nil {
-				cfg.ProxyBuffering = ProxyBuffering
+		if proxyBuffering, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
 			} else {
-				glog.Errorf("In configmap %v/%v 'proxy-buffering' contains invalid declaration: %v, ignoring", cfgm.Namespace, cfgm.Name, err)
+				cfg.ProxyBuffering = proxyBuffering
 			}
 		}
 		if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
@@ -357,6 +392,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 
 	ings, _ := lbc.ingLister.List()
 	for _, ing := range ings.Items {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }
@@ -393,6 +431,9 @@ func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
 	svc := obj.(*api.Service)
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
+		if !isNginxIngress(&ing) {
+			continue
+		}
 		lbc.ingQueue.enqueue(&ing)
 	}
 }

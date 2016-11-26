@@ -1,5 +1,15 @@
 # Changelog
 
+### 0.6.0
+
+* [75](https://github.com/nginxinc/kubernetes-ingress/pull/75): Add the HSTS settings in the configmap and annotations. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* [74](https://github.com/nginxinc/kubernetes-ingress/pull/74): Fix the issue of the `kubernetes.io/ingress.class` annotation handling. Thanks to [Tang Le](https://github.com/tangle329).
+* [70](https://github.com/nginxinc/kubernetes-ingress/pull/70): Add support for the alpine-based image for the NGINX controller.
+* [68](https://github.com/nginxinc/kubernetes-ingress/pull/68): Support for proxy-buffering settings in the configmap and annotations. Thanks to [Mark Daniel Reidel](https://github.com/df-mreidel).
+* [66](https://github.com/nginxinc/kubernetes-ingress/pull/66): Support for custom log-format in the configmap. Thanks to [Mark Daniel Reidel](https://github.com/df-mreidel).
+* [65](https://github.com/nginxinc/kubernetes-ingress/pull/65): Add HTTP/2 as an option in the configmap and annotations. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* The NGINX Plus controller image is now based on Ubuntu Xenial.
+
 ### 0.5.0
 
 * Update NGINX version to 1.11.5.

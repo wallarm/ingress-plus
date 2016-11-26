@@ -111,7 +111,14 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 		}
 
-		server := Server{Name: serverName, StatusZone: statuzZone}
+		server := Server{
+			Name:                  serverName,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			StatusZone:            statuzZone,
+		}
 
 		if pemFile, ok := pems[serverName]; ok {
 			server.SSL = true
@@ -153,7 +160,14 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		statuzZone := ingEx.Ingress.Namespace + "-" + ingEx.Ingress.Name
 		glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 
-		server := Server{Name: serverName, StatusZone: statuzZone}
+		server := Server{
+			Name:                  serverName,
+			HTTP2:                 ingCfg.HTTP2,
+			HSTS:                  ingCfg.HSTS,
+			HSTSMaxAge:            ingCfg.HSTSMaxAge,
+			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			StatusZone:            statuzZone,
+		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
 			server.SSL = true
@@ -186,7 +200,61 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
 	}
+	if HTTP2, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/http2", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.HTTP2 = HTTP2
+		}
+	}
+	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.ProxyBuffering = proxyBuffering
+		}
+	}
 
+	if hsts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			parsingErrors := false
+
+			hstsMaxAge, existsMA, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/hsts-max-age", ingEx.Ingress)
+			if existsMA && err != nil {
+				glog.Error(err)
+				parsingErrors = true
+			}
+			hstsIncludeSubdomains, existsIS, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-include-subdomains", ingEx.Ingress)
+			if existsIS && err != nil {
+				glog.Error(err)
+				parsingErrors = true
+			}
+
+			if parsingErrors {
+				glog.Errorf("Ingress %s/%s: There are configuration issues with hsts annotations, skipping annotions for all hsts settings", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
+			} else {
+				ingCfg.HSTS = hsts
+				if existsMA {
+					ingCfg.HSTSMaxAge = hstsMaxAge
+				}
+				if existsIS {
+					ingCfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+				}
+			}
+		}
+	}
+
+	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
+		ingCfg.ProxyBuffers = proxyBuffers
+	}
+	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
+		ingCfg.ProxyBufferSize = proxyBufferSize
+	}
+	if proxyMaxTempFileSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-max-temp-file-size"]; exists {
+		ingCfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	}
 	return ingCfg
 }
 
@@ -283,14 +351,18 @@ func parseStickyService(service string) (serviceName string, stickyCookie string
 
 func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool) Location {
 	loc := Location{
-		Path:                path,
-		Upstream:            upstream,
-		ProxyConnectTimeout: cfg.ProxyConnectTimeout,
-		ProxyReadTimeout:    cfg.ProxyReadTimeout,
-		ClientMaxBodySize:   cfg.ClientMaxBodySize,
-		Websocket:           websocket,
-		Rewrite:             rewrite,
-		SSL:                 ssl,
+		Path:                 path,
+		Upstream:             upstream,
+		ProxyConnectTimeout:  cfg.ProxyConnectTimeout,
+		ProxyReadTimeout:     cfg.ProxyReadTimeout,
+		ClientMaxBodySize:    cfg.ClientMaxBodySize,
+		Websocket:            websocket,
+		Rewrite:              rewrite,
+		SSL:                  ssl,
+		ProxyBuffering:       cfg.ProxyBuffering,
+		ProxyBuffers:         cfg.ProxyBuffers,
+		ProxyBufferSize:      cfg.ProxyBufferSize,
+		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 	}
 
 	return loc
@@ -377,6 +449,7 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 	mainCfg := &NginxMainConfig{
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
+		LogFormat:                 config.MainLogFormat,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
