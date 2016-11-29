@@ -105,9 +105,13 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		server := Server{
 			Name:                  serverName,
 			HTTP2:                 ingCfg.HTTP2,
+			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			RealIPHeader:          ingCfg.RealIPHeader,
+			SetRealIPFrom:         ingCfg.SetRealIPFrom,
+			RealIPRecursive:       ingCfg.RealIPRecursive,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -149,9 +153,13 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		server := Server{
 			Name:                  emptyHost,
 			HTTP2:                 ingCfg.HTTP2,
+			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			RealIPHeader:          ingCfg.RealIPHeader,
+			SetRealIPFrom:         ingCfg.SetRealIPFrom,
+			RealIPRecursive:       ingCfg.RealIPRecursive,
 		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
