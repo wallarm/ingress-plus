@@ -29,6 +29,10 @@ func NewConfigurator(nginx *NginxController, config *Config) *Configurator {
 	return &cnf
 }
 
+func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
+	return cnf.nginx.AddOrUpdateDHParam(content)
+}
+
 // AddOrUpdateIngress adds or updates NGINX configuration for an Ingress resource
 func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
 	cnf.lock.Lock()
@@ -387,6 +391,10 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
 		LogFormat:                 config.MainLogFormat,
+		SSLProtocols:              config.MainServerSSLProtocols,
+		SSLCiphers:                config.MainServerSSLCiphers,
+		SSLDHParam:                config.MainServerSSLDHParam,
+		SSLPreferServerCiphers:    config.MainServerSSLPreferServerCiphers,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

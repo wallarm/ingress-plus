@@ -16,6 +16,11 @@ type Config struct {
 	HSTS                          bool
 	HSTSMaxAge                    int64
 	HSTSIncludeSubdomains         bool
+	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
+	MainServerSSLProtocols           string
+	MainServerSSLPreferServerCiphers bool
+	MainServerSSLCiphers             string
+	MainServerSSLDHParam             string
 }
 
 // NewDefaultConfig creates a Config with default values

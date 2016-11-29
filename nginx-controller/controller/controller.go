@@ -364,6 +364,29 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 			}
 		}
 
+		// SSL block
+		if sslProtocols, exists := cfgm.Data["ssl-protocols"]; exists {
+			cfg.MainServerSSLProtocols = sslProtocols
+		}
+		if sslPreferServerCiphers, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "ssl-prefer-server-ciphers", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.MainServerSSLPreferServerCiphers = sslPreferServerCiphers
+			}
+		}
+		if sslCiphers, exists := cfgm.Data["ssl-ciphers"]; exists {
+			cfg.MainServerSSLCiphers = strings.Trim(sslCiphers, "\n")
+		}
+		if sslDHParamFile, exists := cfgm.Data["ssl-dhparam-file"]; exists {
+			sslDHParamFile = strings.Trim(sslDHParamFile, "\n")
+			fileName, err := lbc.cnf.AddOrUpdateDHParam(sslDHParamFile)
+			if err != nil {
+				glog.Errorf("Configmap %s/%s: Could not update dhparams: %v", cfgm.GetNamespace(), cfgm.GetName(), err)
+			}
+			cfg.MainServerSSLDHParam = fileName
+		}
+
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
 			cfg.MainLogFormat = logFormat
 		}
@@ -467,7 +490,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 			glog.Warningf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 			continue
 		}
-		ingEx.Secrets[secretName] = secret
+		ingEx.Secrets[fmt.Sprintf("%s-%s", ing.GetNamespace(), secretName)] = secret
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
