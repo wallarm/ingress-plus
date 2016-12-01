@@ -383,8 +383,9 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 			fileName, err := lbc.cnf.AddOrUpdateDHParam(sslDHParamFile)
 			if err != nil {
 				glog.Errorf("Configmap %s/%s: Could not update dhparams: %v", cfgm.GetNamespace(), cfgm.GetName(), err)
+			} else {
+				cfg.MainServerSSLDHParam = fileName
 			}
-			cfg.MainServerSSLDHParam = fileName
 		}
 
 		if logFormat, exists := cfgm.Data["log-format"]; exists {
@@ -490,7 +491,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 			glog.Warningf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 			continue
 		}
-		ingEx.Secrets[fmt.Sprintf("%s-%s", ing.GetNamespace(), secretName)] = secret
+		ingEx.Secrets[secretName] = secret
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
