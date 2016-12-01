@@ -11,6 +11,8 @@ import (
 	"github.com/golang/glog"
 )
 
+const dhparamFilename = "dhparam.pem"
+
 // NginxController Updates NGINX configuration, starts and reloads NGINX
 type NginxController struct {
 	nginxConfdPath string
@@ -78,6 +80,11 @@ type NginxMainConfig struct {
 	ServerNamesHashBucketSize string
 	ServerNamesHashMaxSize    string
 	LogFormat                 string
+	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
+	SSLProtocols           string
+	SSLPreferServerCiphers bool
+	SSLCiphers             string
+	SSLDHParam             string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -99,7 +106,7 @@ func NewNginxController(nginxConfPath string, local bool) (*NginxController, err
 	}
 
 	if !local {
-		ngxc.createCertsDir()
+		createDir(ngxc.nginxCertsPath)
 	}
 
 	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize}
@@ -127,6 +134,24 @@ func (nginx *NginxController) AddOrUpdateIngress(name string, config IngressNgin
 	glog.V(3).Infof("Updating NGINX configuration")
 	filename := nginx.getIngressNginxConfigFileName(name)
 	nginx.templateIt(config, filename)
+}
+
+// AddOrUpdateDHParam creates the servers dhparam.pem file
+func (nginx *NginxController) AddOrUpdateDHParam(dhparam string) (string, error) {
+	fileName := nginx.nginxCertsPath + "/" + dhparamFilename
+	if !nginx.local {
+		pem, err := os.Create(fileName)
+		if err != nil {
+			return fileName, fmt.Errorf("Couldn't create file %v: %v", fileName, err)
+		}
+		defer pem.Close()
+
+		_, err = pem.WriteString(dhparam)
+		if err != nil {
+			return fileName, fmt.Errorf("Couldn't write to pem file %v: %v", fileName, err)
+		}
+	}
+	return fileName, nil
 }
 
 // AddOrUpdateCertAndKey creates a .pem file wth the cert and the key with the
@@ -219,9 +244,9 @@ func (nginx *NginxController) Start() {
 	}
 }
 
-func (nginx *NginxController) createCertsDir() {
-	if err := os.Mkdir(nginx.nginxCertsPath, os.ModeDir); err != nil {
-		glog.Fatalf("Couldn't create directory %v: %v", nginx.nginxCertsPath, err)
+func createDir(path string) {
+	if err := os.Mkdir(path, os.ModeDir); err != nil {
+		glog.Fatalf("Couldn't create directory %v: %v", path, err)
 	}
 }
 

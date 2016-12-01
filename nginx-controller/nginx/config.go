@@ -24,6 +24,12 @@ type Config struct {
 	RealIPHeader    string
 	SetRealIPFrom   []string
 	RealIPRecursive bool
+
+	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
+	MainServerSSLProtocols           string
+	MainServerSSLPreferServerCiphers bool
+	MainServerSSLCiphers             string
+	MainServerSSLDHParam             string
 }
 
 // NewDefaultConfig creates a Config with default values
