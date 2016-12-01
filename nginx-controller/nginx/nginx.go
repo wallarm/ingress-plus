@@ -48,6 +48,8 @@ type Server struct {
 	HSTS                  bool
 	HSTSMaxAge            int64
 	HSTSIncludeSubdomains bool
+	ProxyHideHeaders      []string
+	ProxyPassHeaders      []string
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string
