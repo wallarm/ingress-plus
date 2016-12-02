@@ -29,6 +29,7 @@ server {
 		return 301 https://$host$request_uri;
 	}
 	{{- if $server.HSTS}}
+	proxy_hide_header Strict-Transport-Security;
 	add_header Strict-Transport-Security "max-age={{$server.HSTSMaxAge}}; {{if $server.HSTSIncludeSubdomains}}includeSubDomains; {{end}}preload" always;{{end}}
 	{{- end}}
 
