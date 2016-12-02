@@ -289,12 +289,12 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 			}
 			ingEx, err := lbc.createIngress(&ing)
 			if err != nil {
-				lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
-				return
+				glog.Warningf("Error updating endpoints for %v/%v: %v, skipping", ing.Namespace, ing.Name, err)
+				continue
 			}
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
-			lbc.cnf.UpdateEndpoints(name, &ingEx)
+			lbc.cnf.UpdateEndpoints(name, ingEx)
 		}
 	}
 
@@ -423,7 +423,7 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 			lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
 			return
 		}
-		lbc.cnf.AddOrUpdateIngress(name, &ingEx)
+		lbc.cnf.AddOrUpdateIngress(name, ingEx)
 	}
 }
 
@@ -462,8 +462,8 @@ func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []ext
 	return ings
 }
 
-func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (nginx.IngressEx, error) {
-	ingEx := nginx.IngressEx{
+func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*nginx.IngressEx, error) {
+	ingEx := &nginx.IngressEx{
 		Ingress: ing,
 	}
 
@@ -472,7 +472,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (nginx
 		secretName := tls.SecretName
 		secret, err := lbc.client.Secrets(ing.Namespace).Get(secretName)
 		if err != nil {
-			return ingEx, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
+			return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
 		ingEx.Secrets[secretName] = secret
 	}
