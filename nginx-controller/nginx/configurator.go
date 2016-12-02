@@ -66,7 +66,8 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 			continue
 		}
 
-		pemFileName := cnf.nginx.AddOrUpdateCertAndKey(secretName, string(cert), string(key))
+		name := ingEx.Ingress.Namespace + "-" + secretName
+		pemFileName := cnf.nginx.AddOrUpdateCertAndKey(name, string(cert), string(key))
 
 		for _, host := range tls.Hosts {
 			pems[host] = pemFileName
