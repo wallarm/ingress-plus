@@ -287,10 +287,14 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 			if !isNginxIngress(&ing) {
 				continue
 			}
-			ingEx := lbc.createIngress(&ing)
+			ingEx, err := lbc.createIngress(&ing)
+			if err != nil {
+				glog.Warningf("Error updating endpoints for %v/%v: %v, skipping", ing.Namespace, ing.Name, err)
+				continue
+			}
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
-			lbc.cnf.UpdateEndpoints(name, &ingEx)
+			lbc.cnf.UpdateEndpoints(name, ingEx)
 		}
 	}
 
@@ -479,8 +483,12 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 		glog.V(2).Infof("Adding or Updating Ingress: %v\n", key)
 
 		ing := obj.(*extensions.Ingress)
-		ingEx := lbc.createIngress(ing)
-		lbc.cnf.AddOrUpdateIngress(name, &ingEx)
+		ingEx, err := lbc.createIngress(ing)
+		if err != nil {
+			lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
+			return
+		}
+		lbc.cnf.AddOrUpdateIngress(name, ingEx)
 	}
 }
 
@@ -519,8 +527,8 @@ func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []ext
 	return ings
 }
 
-func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.IngressEx {
-	ingEx := nginx.IngressEx{
+func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*nginx.IngressEx, error) {
+	ingEx := &nginx.IngressEx{
 		Ingress: ing,
 	}
 
@@ -529,8 +537,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		secretName := tls.SecretName
 		secret, err := lbc.client.Secrets(ing.Namespace).Get(secretName)
 		if err != nil {
-			glog.Warningf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
-			continue
+			return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
 		ingEx.Secrets[secretName] = secret
 	}
@@ -560,7 +567,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) nginx.
 		}
 	}
 
-	return ingEx
+	return ingEx, nil
 }
 
 func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extensions.IngressBackend, namespace string) ([]string, error) {
