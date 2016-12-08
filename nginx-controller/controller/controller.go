@@ -86,7 +86,19 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 			lbc.ingQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
-			remIng := obj.(*extensions.Ingress)
+			remIng, isIng := obj.(*extensions.Ingress)
+			if !isIng {
+				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.V(3).Infof("Error received unexpected object: %v", obj)
+					return
+				}
+				remIng, ok = deletedState.Obj.(*extensions.Ingress)
+				if !ok {
+					glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-Ingress object: %v", deletedState.Obj)
+					return
+				}
+			}
 			if !isNginxIngress(remIng) {
 				return
 			}
@@ -115,18 +127,30 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		AddFunc: func(obj interface{}) {
 			addSvc := obj.(*api.Service)
 			glog.V(3).Infof("Adding service: %v", addSvc.Name)
-			lbc.enqueueIngressForService(obj)
+			lbc.enqueueIngressForService(addSvc)
 		},
 		DeleteFunc: func(obj interface{}) {
-			remSvc := obj.(*api.Service)
+			remSvc, isSvc := obj.(*api.Service)
+			if !isSvc {
+				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.V(3).Infof("Error received unexpected object: %v", obj)
+					return
+				}
+				remSvc, ok = deletedState.Obj.(*api.Service)
+				if !ok {
+					glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-Service object: %v", deletedState.Obj)
+					return
+				}
+			}
 			glog.V(3).Infof("Removing service: %v", remSvc.Name)
-			lbc.enqueueIngressForService(obj)
+			lbc.enqueueIngressForService(remSvc)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
 				glog.V(3).Infof("Service %v changed, syncing",
 					cur.(*api.Service).Name)
-				lbc.enqueueIngressForService(cur)
+				lbc.enqueueIngressForService(cur.(*api.Service))
 			}
 		},
 	}
@@ -144,7 +168,19 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 			lbc.endpQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
-			remEndp := obj.(*api.Endpoints)
+			remEndp, isEndp := obj.(*api.Endpoints)
+			if !isEndp {
+				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.V(3).Infof("Error received unexpected object: %v", obj)
+					return
+				}
+				remEndp, ok = deletedState.Obj.(*api.Endpoints)
+				if !ok {
+					glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-Endpoints object: %v", deletedState.Obj)
+					return
+				}
+			}
 			glog.V(3).Infof("Removing endpoints: %v", remEndp.Name)
 			lbc.endpQueue.enqueue(obj)
 		},
@@ -180,7 +216,19 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
-					cfgm := obj.(*api.ConfigMap)
+					cfgm, isCfgm := obj.(*api.ConfigMap)
+					if !isCfgm {
+						deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+						if !ok {
+							glog.V(3).Infof("Error received unexpected object: %v", obj)
+							return
+						}
+						cfgm, ok = deletedState.Obj.(*api.ConfigMap)
+						if !ok {
+							glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-CogfigMap object: %v", deletedState.Obj)
+							return
+						}
+					}
 					if cfgm.Name == nginxConfigMapsName {
 						glog.V(3).Infof("Removing ConfigMap: %v", cfgm.Name)
 						lbc.cfgmQueue.enqueue(obj)
@@ -492,8 +540,7 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 	}
 }
 
-func (lbc *LoadBalancerController) enqueueIngressForService(obj interface{}) {
-	svc := obj.(*api.Service)
+func (lbc *LoadBalancerController) enqueueIngressForService(svc *api.Service) {
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
 		if !isNginxIngress(&ing) {
