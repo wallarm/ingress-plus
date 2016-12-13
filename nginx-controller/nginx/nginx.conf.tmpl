@@ -43,5 +43,18 @@ http {
     {{if .SSLPreferServerCiphers}}ssl_prefer_server_ciphers on;{{end}}
     {{if .SSLDHParam}}ssl_dhparam {{.SSLDHParam}};{{end}}
 
+    {{if .HealthStatus}}
+    server {
+        listen 80 default_server;
+        server_name _;
+
+        location /nginx-health {
+            access_log off;
+            default_type text/plain;
+            return 200 "healthy\n";
+        }
+    }
+    {{end}}
+
     include /etc/nginx/conf.d/*.conf;
 }

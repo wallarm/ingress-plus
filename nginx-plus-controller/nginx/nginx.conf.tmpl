@@ -39,5 +39,18 @@ http {
         ''      close;
     }
 
+    {{if .HealthStatus}}
+    server {
+        listen 80 default_server;
+        server_name _;
+
+        location /nginx-health {
+            access_log off;
+            default_type text/plain;
+            return 200 "healthy\n";
+        }
+    }
+    {{end}}
+
     include /etc/nginx/conf.d/*.conf;
 }
