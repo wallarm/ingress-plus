@@ -80,6 +80,7 @@ type NginxMainConfig struct {
 	ServerNamesHashBucketSize string
 	ServerNamesHashMaxSize    string
 	LogFormat                 string
+	HealthStatus              bool
 	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
 	SSLProtocols           string
 	SSLPreferServerCiphers bool
@@ -98,7 +99,7 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 }
 
 // NewNginxController creates a NGINX controller
-func NewNginxController(nginxConfPath string, local bool) (*NginxController, error) {
+func NewNginxController(nginxConfPath string, local bool, healthStatus bool) (*NginxController, error) {
 	ngxc := NginxController{
 		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
 		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
@@ -109,7 +110,7 @@ func NewNginxController(nginxConfPath string, local bool) (*NginxController, err
 		createDir(ngxc.nginxCertsPath)
 	}
 
-	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize}
+	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize, HealthStatus: healthStatus}
 	ngxc.UpdateMainConfigFile(cfg)
 
 	return &ngxc, nil

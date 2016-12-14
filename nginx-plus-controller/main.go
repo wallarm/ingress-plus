@@ -16,6 +16,10 @@ var (
 	// Set during build
 	version string
 
+	healthStatus = flag.Bool("health-status", false,
+		`If present, the default server listening on port 80 with the health check
+		location "/nginx-health" gets added to the main nginx configuration.`)
+
 	proxyURL = flag.String("proxy", "",
 		`If specified, the controller assumes a kubctl proxy server is running on the
 		given url and creates a proxy client. Regenerated NGINX configuration files
@@ -52,7 +56,7 @@ func main() {
 		}
 	}
 
-	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local)
+	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus)
 	ngxc.Start()
 	config := nginx.NewDefaultConfig()
 	nginxAPI, err := nginx.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)
