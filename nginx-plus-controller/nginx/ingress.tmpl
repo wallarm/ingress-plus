@@ -1,10 +1,10 @@
 {{range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
-	zone {{$upstream.Name}} 64k;
+	zone {{$upstream.Name}} 256k;
 	{{if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{end}}
-	state /var/lib/nginx/{{$upstream.Name}}.state;
+	state /var/lib/nginx/state/{{$upstream.Name}}.state;
 }{{end}}
 
 {{range $server := .Servers}}
