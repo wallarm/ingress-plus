@@ -196,7 +196,7 @@ func (nginx *NginxController) Reload() error {
 func (nginx *NginxController) Start() {
 	if !nginx.local {
 		if err := shellOut("nginx"); err != nil {
-			glog.Fatalf("Failed to start nginx")
+			glog.Fatalf("Failed to start nginx: %v", err)
 		}
 	} else {
 		glog.V(3).Info("Starting nginx")
