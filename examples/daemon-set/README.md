@@ -24,4 +24,4 @@ Optionally, you can choose to run the controller pods on only select nodes. To a
 
 1. Uncomment the **nodeSelector** related lines (11-12) in the corresponding daemon set yaml file and specify a label to use to select nodes (`role=nginx-ingress` in this example).
 
-1. Deploy the controller. The pods are scheduled only on w*node-1* and *node-2*.
+1. Deploy the controller. The pods are scheduled only on *node-1* and *node-2*.
