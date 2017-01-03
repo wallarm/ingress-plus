@@ -32,6 +32,10 @@ func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *NginxAPIC
 	return &cnf
 }
 
+func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
+	return cnf.nginx.AddOrUpdateDHParam(content)
+}
+
 // AddOrUpdateIngress adds or updates NGINX configuration for an Ingress resource
 func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
 	cnf.lock.Lock()
@@ -115,10 +119,16 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		server := Server{
 			Name:                  serverName,
 			HTTP2:                 ingCfg.HTTP2,
+			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 			StatusZone:            statuzZone,
+			RealIPHeader:          ingCfg.RealIPHeader,
+			SetRealIPFrom:         ingCfg.SetRealIPFrom,
+			RealIPRecursive:       ingCfg.RealIPRecursive,
+			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
+			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -164,10 +174,16 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		server := Server{
 			Name:                  serverName,
 			HTTP2:                 ingCfg.HTTP2,
+			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
 			StatusZone:            statuzZone,
+			RealIPHeader:          ingCfg.RealIPHeader,
+			SetRealIPFrom:         ingCfg.SetRealIPFrom,
+			RealIPRecursive:       ingCfg.RealIPRecursive,
+			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
+			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
 		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
@@ -197,6 +213,20 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	}
 	if proxyReadTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-read-timeout"]; exists {
 		ingCfg.ProxyReadTimeout = proxyReadTimeout
+	}
+	if proxyHideHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-hide-headers", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.ProxyHideHeaders = proxyHideHeaders
+		}
+	}
+	if proxyPassHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-pass-headers", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.ProxyPassHeaders = proxyPassHeaders
+		}
 	}
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
@@ -451,6 +481,10 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
 		LogFormat:                 config.MainLogFormat,
+		SSLProtocols:              config.MainServerSSLProtocols,
+		SSLCiphers:                config.MainServerSSLCiphers,
+		SSLDHParam:                config.MainServerSSLDHParam,
+		SSLPreferServerCiphers:    config.MainServerSSLPreferServerCiphers,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

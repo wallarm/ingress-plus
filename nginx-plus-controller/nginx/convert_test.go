@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"reflect"
 	"testing"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -151,5 +152,38 @@ func TestGetMapKeyAsIntErrorMessage(t *testing.T) {
 	expected = `Ingress kube-system/test 'key' contains invalid integer: strconv.ParseInt: parsing "other_string": invalid syntax, ignoring`
 	if err.Error() != expected {
 		t.Errorf("The error message does not match expectations:\nGot: %v\nExpected: %v", err, expected)
+	}
+}
+
+//
+// GetMapKeyAsStringSlice
+//
+func TestGetMapKeyAsStringSlice(t *testing.T) {
+	configMap := configMap
+	configMap.Data = map[string]string{
+		"key": "1.String,2.String,3.String",
+	}
+
+	slice, exists, err := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if !exists {
+		t.Errorf("The key 'key' must exist in the configMap")
+	}
+	expected := []string{"1.String", "2.String", "3.String"}
+	t.Log(expected)
+	if !reflect.DeepEqual(expected, slice) {
+		t.Errorf("Unexpected return value:\nGot: %#v\nExpected: %#v", slice, expected)
+	}
+}
+
+func TestGetMapKeyAsStringSliceNotFound(t *testing.T) {
+	configMap := configMap
+	configMap.Data = map[string]string{}
+
+	_, exists, _ := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap)
+	if exists {
+		t.Errorf("The key 'key' must not exist in the configMap")
 	}
 }
