@@ -13,9 +13,23 @@ type Config struct {
 	ProxyBuffers                  string
 	ProxyBufferSize               string
 	ProxyMaxTempFileSize          string
+	ProxyProtocol                 bool
+	ProxyHideHeaders              []string
+	ProxyPassHeaders              []string
 	HSTS                          bool
 	HSTSMaxAge                    int64
 	HSTSIncludeSubdomains         bool
+
+	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
+	RealIPHeader    string
+	SetRealIPFrom   []string
+	RealIPRecursive bool
+
+	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
+	MainServerSSLProtocols           string
+	MainServerSSLPreferServerCiphers bool
+	MainServerSSLCiphers             string
+	MainServerSSLDHParam             string
 }
 
 // NewDefaultConfig creates a Config with default values
