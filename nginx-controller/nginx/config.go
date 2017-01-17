@@ -2,6 +2,7 @@ package nginx
 
 // Config holds NGINX configuration parameters
 type Config struct {
+	ServerTokens                  bool
 	ProxyConnectTimeout           string
 	ProxyReadTimeout              string
 	ClientMaxBodySize             string
@@ -35,6 +36,7 @@ type Config struct {
 // NewDefaultConfig creates a Config with default values
 func NewDefaultConfig() *Config {
 	return &Config{
+		ServerTokens:               true,
 		ProxyConnectTimeout:        "60s",
 		ProxyReadTimeout:           "60s",
 		ClientMaxBodySize:          "1m",
