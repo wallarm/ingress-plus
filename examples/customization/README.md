@@ -13,6 +13,8 @@ The table below summarizes some of the options. More options (extensions) are av
 | `nginx.org/proxy-buffers` | `proxy-buffers` | Sets the value of the [proxy_buffers](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers) directive. | Depends on the platform. |
 | `nginx.org/proxy-buffer-size` | `proxy-buffer-size` | Sets the value of the [proxy_buffer_size](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffer_size) directive | Depends on the platform. |
 | `nginx.org/proxy-max-temp-file-size` | `proxy-max-temp-file-size` | Sets the value of the  [proxy_max_temp_file_size](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_max_temp_file_size) directive. | `1024m` |
+| `nginx.org/proxy-hide-headers` | `proxy-hide-headers` | Sets the value of one or more  [proxy_hide_header](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_hide_header) directives. Example: `"nginx.org/proxy-hide-headers": "header-a,header-b"` | N/A |
+| `nginx.org/proxy-pass-headers` | `proxy-pass-headers` | Sets the value of one or more   [proxy_pass_header](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass_header) directives. Example: `"nginx.org/proxy-pass-headers": "header-a,header-b"` | N/A |
 | N/A | `server-names-hash-bucket-size` | Sets the value of the [server_names_hash_max_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_names_hash_max_size) directive. | Depends on the size of the processor’s cache line. |
 | N/A | `server-names-hash-max-size` | Sets the value of the [server_names_hash_bucket_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_names_hash_bucket_size) directive. | `512` |
 | `nginx.org/http2` | `http2` | Enables HTTP/2 in servers with SSL enabled. To support HTTP/2 for Chrome users, use the provided controller image based on the alpine Linux. It includes OpenSSL with ALPN support, [necessary for Chrome users](https://www.nginx.com/blog/supporting-http2-google-chrome-users/). | `False` |
@@ -20,6 +22,13 @@ The table below summarizes some of the options. More options (extensions) are av
 | `nginx.org/hsts` | `hsts` | Enables [HTTP Strict Transport Security (HSTS)](https://www.nginx.com/blog/http-strict-transport-security-hsts-and-nginx/): the HSTS header is added to the responses from backends. The `preload` directive is included in the header. | `False` |
 | `nginx.org/hsts-max-age` | `hsts-max-age` | Sets the value of the `max-age` directive of the HSTS header. | `2592000` (1 month) |
 | `nginx.org/hsts-include-subdomains` | `hsts-include-subdomains` | Adds the `includeSubDomains` directive to the HSTS header. | `False`|
+| N/A | `ssl-protocols` | Sets the value of the [ssl_protocols](http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_protocols) directive. | `TLSv1 TLSv1.1 TLSv1.2`|
+| N/A | `ssl-prefer-server-cipher` | Enables or disables the [ssl_prefer_server_ciphers](http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_prefer_server_ciphers) directive. | `False`|
+| N/A | `ssl-ciphers` | Sets the value of the [ssl_ciphers](http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_ciphers) directive. | `HIGH:!aNULL:!MD5`|
+| N/A | `ssl-dhparam-file` | Sets the content of the dhparam file. The controller will create the file and set the value of the [ssl_dhparam](http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_dhparam) directive with the path of the file.  | N/A|
+| N/A | `set-real-ip-from` | Sets the value of the [set_real_ip_from](http://nginx.org/en/docs/http/ngx_http_realip_module.html#set_real_ip_from) directive. | N/A |
+| N/A | `real-ip-header` | Sets the value of the [real_ip_header](http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_header) directive. | `X-Real-IP`|
+| N/A | `real-ip-recursive` | Enables or disables the [real_ip_recursive](http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_recursive) directive. | `False`|
 
 ## Using ConfigMaps
 
