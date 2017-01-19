@@ -361,6 +361,14 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 	if cfgmExists {
 		cfgm := obj.(*api.ConfigMap)
 
+		if serverTokens, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "server-tokens", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.ServerTokens = serverTokens
+			}
+		}
+
 		if proxyConnectTimeout, exists := cfgm.Data["proxy-connect-timeout"]; exists {
 			cfg.ProxyConnectTimeout = proxyConnectTimeout
 		}
