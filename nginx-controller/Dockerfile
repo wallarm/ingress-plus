@@ -1,4 +1,4 @@
-FROM nginx:1.11.7
+FROM nginx:1.11.8
 
 # forward nginx access and error logs to stdout and stderr of the ingress
 # controller process
