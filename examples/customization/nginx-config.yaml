@@ -31,3 +31,4 @@ data:
   set-real-ip-from: "192.168.192.168" # No default. Sets the value of the set_real_ip_from directive. See http://nginx.org/en/docs/http/ngx_http_realip_module.html#set_real_ip_from
   real-ip-header: "proxy_protocol" # default is X-Real-IP. Sets the value of the real_ip_header directive. http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_header
   real-ip-recursive: "True" # default is "False". Enables or disables the real_ip_recursive directive. See http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_recursive
+  server-tokens: "False" # default is "True". Enables or disables the server_tokens directive. See http://nginx.org/en/docs/http/ngx_http_core_module.html#server_tokens

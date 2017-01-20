@@ -118,6 +118,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		server := Server{
 			Name:                  serverName,
+			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
 			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
@@ -173,6 +174,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		server := Server{
 			Name:                  serverName,
+			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
 			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
@@ -208,6 +210,17 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	ingCfg := *cnf.config
+	if serverTokens, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/server-tokens", ingEx.Ingress); exists {
+		if err != nil {
+			// not a boolean value. hence, a custom string
+			ingCfg.ServerTokens = ingEx.Ingress.Annotations["nginx.org/server-tokens"]
+		} else {
+			ingCfg.ServerTokens = "off"
+			if serverTokens {
+				ingCfg.ServerTokens = "on"
+			}
+		}
+	}
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {
 		ingCfg.ProxyConnectTimeout = proxyConnectTimeout
 	}

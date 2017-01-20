@@ -20,6 +20,8 @@ server {
 	{{if $server.RealIPHeader}}real_ip_header {{$server.RealIPHeader}};{{end}}
 	{{if $server.RealIPRecursive}}real_ip_recursive on;{{end}}
 
+	server_tokens "{{$server.ServerTokens}}";
+
 	{{if $server.Name}}
 	server_name {{$server.Name}};
 	{{end}}
