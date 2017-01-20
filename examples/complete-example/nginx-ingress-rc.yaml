@@ -14,7 +14,7 @@ spec:
         app: nginx-ingress
     spec:
       containers:
-      - image: nginxdemos/nginx-ingress:0.6.0
+      - image: nginxdemos/nginx-ingress:0.7.0
         imagePullPolicy: Always
         name: nginx-ingress
         ports:

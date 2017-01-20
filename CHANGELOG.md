@@ -1,5 +1,23 @@
 # Changelog
 
+### 0.7.0
+
+* [108](https://github.com/nginxinc/kubernetes-ingress/pull/108): Support for the `server_tokens` directive via the annotation and in the configmap. Thanks to [David Radcliffe](https://github.com/dwradcliffe).
+* [103](https://github.com/nginxinc/kubernetes-ingress/pull/103): Improve error reporting when NGINX fails to start.
+* [100](https://github.com/nginxinc/kubernetes-ingress/pull/100): Add the health check location. Thanks to [Julian](https://github.com/jmastr).
+* [95](https://github.com/nginxinc/kubernetes-ingress/pull/95): Fix the runtime.TypeAssertionError issue, which sometimes occurred when deleting resources. Thanks to [Tang Le](https://github.com/tangle329).
+* [93](https://github.com/nginxinc/kubernetes-ingress/pull/93): Fix overwriting of Secrets with the same name from different namespaces.
+* [92](https://github.com/nginxinc/kubernetes-ingress/pull/92/files): Add overwriting of the HSTS header. Previously, when HSTS was enabled, if a backend issued the HSTS header, the controller would add the second HSTS header. Now the controller overwrites the HSTS header, if a backend also issues it.
+* [91](https://github.com/nginxinc/kubernetes-ingress/pull/91):
+Fix the issue with single service Ingress resources without any Ingress rules: the controller didn't pick up any updates of the endpoints of the service of such an Ingress resource. Thanks to [Tang Le](https://github.com/tangle329).
+* [88](https://github.com/nginxinc/kubernetes-ingress/pull/88): Support for the `proxy_hide_header` and the `proxy_pass_header` directives via annotations and in the configmap. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* [85](https://github.com/nginxinc/kubernetes-ingress/pull/85): Add the configmap settings to support perfect forward secrecy. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* [84](https://github.com/nginxinc/kubernetes-ingress/pull/84): Secret retry: If a certificate Secret referenced in an Ingress object is not found,
+the Ingress controller will reject the Ingress object. but retries every 5s. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* [81](https://github.com/nginxinc/kubernetes-ingress/pull/81): Add configmap options to turn on the PROXY protocol. Thanks to [Nico Schieder](https://github.com/thetechnick).
+* Update NGINX version to 1.11.8.
+* Documentation fixes: [104](https://github.com/nginxinc/kubernetes-ingress/pull/104/files) and [97](https://github.com/nginxinc/kubernetes-ingress/pull/97/files). Thanks to [Ruilin Huang](https://github.com/hrl) and [Justin Garrison](https://github.com/rothgar).
+
 ### 0.6.0
 
 * [75](https://github.com/nginxinc/kubernetes-ingress/pull/75): Add the HSTS settings in the configmap and annotations. Thanks to [Nico Schieder](https://github.com/thetechnick).
