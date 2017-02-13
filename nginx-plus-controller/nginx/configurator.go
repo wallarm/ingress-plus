@@ -120,6 +120,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			Name:                  serverName,
 			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
+			RedirectToHTTPS:       ingCfg.RedirectToHTTPS,
 			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
@@ -176,6 +177,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			Name:                  serverName,
 			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
+			RedirectToHTTPS:       ingCfg.RedirectToHTTPS,
 			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
@@ -249,6 +251,13 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 			glog.Error(err)
 		} else {
 			ingCfg.HTTP2 = HTTP2
+		}
+	}
+	if redirectToHTTPS, exists,err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.RedirectToHTTPS = redirectToHTTPS
 		}
 	}
 	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {
