@@ -409,6 +409,13 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 				cfg.HTTP2 = HTTP2
 			}
 		}
+		if redirectToHTTPS, exists,err := nginx.GetMapKeyAsBool(cfgm.Data, "redirect-to-https", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.RedirectToHTTPS = redirectToHTTPS
+			}
+		}
 
 		// HSTS block
 		if hsts, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "hsts", cfgm); exists {
