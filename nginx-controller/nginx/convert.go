@@ -40,10 +40,10 @@ func GetMapKeyAsInt(m map[string]string, key string, context apiObject) (int64, 
 	return 0, false, nil
 }
 
-// GetMapKeyAsStringSlice tries to find and parse a key in the map as string slice splitting it on ','
-func GetMapKeyAsStringSlice(m map[string]string, key string, context apiObject) ([]string, bool, error) {
+// GetMapKeyAsStringSlice tries to find and parse a key in the map as string slice splitting it on delimiter
+func GetMapKeyAsStringSlice(m map[string]string, key string, context apiObject, delimiter string) ([]string, bool, error) {
 	if str, exists := m[key]; exists {
-		slice := strings.Split(str, ",")
+		slice := strings.Split(str, delimiter)
 		return slice, exists, nil
 	}
 	return nil, false, nil
