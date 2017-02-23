@@ -164,7 +164,7 @@ func TestGetMapKeyAsStringSlice(t *testing.T) {
 		"key": "1.String,2.String,3.String",
 	}
 
-	slice, exists, err := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap)
+	slice, exists, err := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap, ",")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -176,13 +176,36 @@ func TestGetMapKeyAsStringSlice(t *testing.T) {
 	if !reflect.DeepEqual(expected, slice) {
 		t.Errorf("Unexpected return value:\nGot: %#v\nExpected: %#v", slice, expected)
 	}
+
+}
+
+func TestGetMapKeyAsStringSliceMultilineSnippets(t *testing.T) {
+	configMap := configMap
+	configMap.Data = map[string]string{
+		"server-snippets": `
+			if ($new_uri) {
+				rewrite ^ $new_uri permanent;
+			}`,
+	}
+	slice, exists, err := GetMapKeyAsStringSlice(configMap.Data, "server-snippets", &configMap, "\n")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if !exists {
+		t.Errorf("The key 'server-snippets' must exist in the configMap")
+	}
+	expected := []string{"", "\t\t\tif ($new_uri) {", "\t\t\t\trewrite ^ $new_uri permanent;", "\t\t\t}"}
+	t.Log(expected)
+	if !reflect.DeepEqual(expected, slice) {
+		t.Errorf("Unexpected return value:\nGot: %#v\nExpected: %#v", slice, expected)
+	}
 }
 
 func TestGetMapKeyAsStringSliceNotFound(t *testing.T) {
 	configMap := configMap
 	configMap.Data = map[string]string{}
 
-	_, exists, _ := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap)
+	_, exists, _ := GetMapKeyAsStringSlice(configMap.Data, "key", &configMap, ",")
 	if exists {
 		t.Errorf("The key 'key' must not exist in the configMap")
 	}

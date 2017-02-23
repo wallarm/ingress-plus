@@ -15,6 +15,11 @@ http {
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
 
+    {{- if .HTTPSnippets}}
+    {{range $value := .HTTPSnippets}}
+    {{$value}}{{end}}
+    {{- end}}
+
     {{if .LogFormat -}}
     log_format  main  '{{.LogFormat}}';
     {{- else -}}
