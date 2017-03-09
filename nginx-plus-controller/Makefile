@@ -10,10 +10,6 @@ GOLANG_CONTAINER = golang:1.7
 BUILD_IN_CONTAINER = 1
 PUSH_TO_GCR =
 
-ifeq ($(PUSH_TO_GCR),1)
-GCLOUD = gcloud
-endif
-
 nginx-plus-ingress:
 ifeq ($(BUILD_IN_CONTAINER),1)
 	$(DOCKER_RUN) -e CGO_ENABLED=0 $(GOLANG_CONTAINER) go build -a -installsuffix cgo -ldflags "-w -X main.version=${VERSION}" -o nginx-plus-ingress *.go
@@ -32,7 +28,11 @@ container: test nginx-plus-ingress
 	docker build -t $(PREFIX):$(TAG) .
 
 push: container
-	$(GCLOUD) docker push $(PREFIX):$(TAG)
+ifeq ($(PUSH_TO_GCR),1)
+	gcloud docker -- push $(PREFIX):$(TAG)
+else
+	docker push $(PREFIX):$(TAG)
+endif
 
 osx:
 ifeq ($(BUILD_IN_CONTAINER),1)
