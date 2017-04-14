@@ -1,5 +1,14 @@
 # Changelog
 
+### 0.8.0
+
+* [117](https://github.com/nginxinc/kubernetes-ingress/pull/117): Add a customization option: location-snippets, server-snippets and http-snippets. Thanks to [rchicoli
+](https://github.com/rchicoli).
+* [116](https://github.com/nginxinc/kubernetes-ingress/pull/116): Add support for the 301 redirect to https based on the `http_x_forwarded_proto` header. Thanks to [Chris](https://github.com/cwhenderson20).
+* Update NGINX version to 1.11.13.
+* Makefile updates: gcloud docker push command; golang container was updated to 1.8.
+* Documentation fixes: [113](https://github.com/nginxinc/kubernetes-ingress/pull/113). Thanks to [Linus Lewandowski](https://github.com/LEW21).
+
 ### 0.7.0
 
 * [108](https://github.com/nginxinc/kubernetes-ingress/pull/108): Support for the `server_tokens` directive via the annotation and in the configmap. Thanks to [David Radcliffe](https://github.com/dwradcliffe).

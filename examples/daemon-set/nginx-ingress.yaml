@@ -11,7 +11,7 @@ spec:
       # nodeSelector:
       #   role: nginx-ingress
       containers:
-      - image: nginxdemos/nginx-ingress:0.7.0
+      - image: nginxdemos/nginx-ingress:0.8.0
         imagePullPolicy: Always
         name: nginx-ingress
         ports:
