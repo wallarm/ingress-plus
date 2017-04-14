@@ -131,6 +131,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			RealIPRecursive:       ingCfg.RealIPRecursive,
 			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
 			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
+			ServerSnippets:        ingCfg.ServerSnippets,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -188,6 +189,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			RealIPRecursive:       ingCfg.RealIPRecursive,
 			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
 			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
+			ServerSnippets:        ingCfg.ServerSnippets,
 		}
 
 		if pemFile, ok := pems[emptyHost]; ok {
@@ -223,20 +225,34 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 			}
 		}
 	}
+	if serverSnippets, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/server-snippets", ingEx.Ingress, "\n"); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.ServerSnippets = serverSnippets
+		}
+	}
+	if locationSnippets, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/location-snippets", ingEx.Ingress, "\n"); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.LocationSnippets = locationSnippets
+		}
+	}
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {
 		ingCfg.ProxyConnectTimeout = proxyConnectTimeout
 	}
 	if proxyReadTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-read-timeout"]; exists {
 		ingCfg.ProxyReadTimeout = proxyReadTimeout
 	}
-	if proxyHideHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-hide-headers", ingEx.Ingress); exists {
+	if proxyHideHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-hide-headers", ingEx.Ingress, ","); exists {
 		if err != nil {
 			glog.Error(err)
 		} else {
 			ingCfg.ProxyHideHeaders = proxyHideHeaders
 		}
 	}
-	if proxyPassHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-pass-headers", ingEx.Ingress); exists {
+	if proxyPassHeaders, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-pass-headers", ingEx.Ingress, ","); exists {
 		if err != nil {
 			glog.Error(err)
 		} else {
@@ -253,7 +269,7 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 			ingCfg.HTTP2 = HTTP2
 		}
 	}
-	if redirectToHTTPS, exists,err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
+	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
 		if err != nil {
 			glog.Error(err)
 		} else {
@@ -416,6 +432,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 		ProxyBuffers:         cfg.ProxyBuffers,
 		ProxyBufferSize:      cfg.ProxyBufferSize,
 		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
+		LocationSnippets:     cfg.LocationSnippets,
 	}
 
 	return loc
@@ -500,6 +517,7 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 
 	cnf.config = config
 	mainCfg := &NginxMainConfig{
+		HTTPSnippets:              config.MainHTTPSnippets,
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
 		LogFormat:                 config.MainLogFormat,
