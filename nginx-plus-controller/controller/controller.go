@@ -379,14 +379,14 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if proxyReadTimeout, exists := cfgm.Data["proxy-read-timeout"]; exists {
 			cfg.ProxyReadTimeout = proxyReadTimeout
 		}
-		if proxyHideHeaders, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "proxy-hide-headers", cfgm); exists {
+		if proxyHideHeaders, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "proxy-hide-headers", cfgm, ","); exists {
 			if err != nil {
 				glog.Error(err)
 			} else {
 				cfg.ProxyHideHeaders = proxyHideHeaders
 			}
 		}
-		if proxyPassHeaders, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "proxy-pass-headers", cfgm); exists {
+		if proxyPassHeaders, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "proxy-pass-headers", cfgm, ","); exists {
 			if err != nil {
 				glog.Error(err)
 			} else {
@@ -409,7 +409,7 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 				cfg.HTTP2 = HTTP2
 			}
 		}
-		if redirectToHTTPS, exists,err := nginx.GetMapKeyAsBool(cfgm.Data, "redirect-to-https", cfgm); exists {
+		if redirectToHTTPS, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "redirect-to-https", cfgm); exists {
 			if err != nil {
 				glog.Error(err)
 			} else {
@@ -461,7 +461,7 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		if realIPHeader, exists := cfgm.Data["real-ip-header"]; exists {
 			cfg.RealIPHeader = realIPHeader
 		}
-		if setRealIPFrom, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "set-real-ip-from", cfgm); exists {
+		if setRealIPFrom, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "set-real-ip-from", cfgm, ","); exists {
 			if err != nil {
 				glog.Error(err)
 			} else {
@@ -518,6 +518,27 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		}
 		if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
 			cfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
+		}
+		if mainHTTPSnippets, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "http-snippets", cfgm, "\n"); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.MainHTTPSnippets = mainHTTPSnippets
+			}
+		}
+		if locationSnippets, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "location-snippets", cfgm, "\n"); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.LocationSnippets = locationSnippets
+			}
+		}
+		if serverSnippets, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "server-snippets", cfgm, "\n"); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.ServerSnippets = serverSnippets
+			}
 		}
 	}
 	lbc.cnf.UpdateConfig(cfg)

@@ -2,12 +2,15 @@ package nginx
 
 // Config holds NGINX configuration parameters
 type Config struct {
+	LocationSnippets              []string
+	ServerSnippets                []string
 	ServerTokens                  string
 	ProxyConnectTimeout           string
 	ProxyReadTimeout              string
 	ClientMaxBodySize             string
 	HTTP2                         bool
 	RedirectToHTTPS               bool
+	MainHTTPSnippets              []string
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string
 	MainLogFormat                 string
