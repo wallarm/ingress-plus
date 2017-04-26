@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.8.1
+
+* Update NGINX version to 1.13.0.
+
 ### 0.8.0
 
 * [117](https://github.com/nginxinc/kubernetes-ingress/pull/117): Add a customization option: location-snippets, server-snippets and http-snippets. Thanks to [rchicoli
