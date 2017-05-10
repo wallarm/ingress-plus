@@ -57,12 +57,12 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 		}
 		cert, ok := secret.Data[api.TLSCertKey]
 		if !ok {
-			glog.Warningf("Secret %v has no private key", secretName)
+			glog.Warningf("Secret %v has no cert", secretName)
 			continue
 		}
 		key, ok := secret.Data[api.TLSPrivateKeyKey]
 		if !ok {
-			glog.Warningf("Secret %v has no cert", secretName)
+			glog.Warningf("Secret %v has no private key", secretName)
 			continue
 		}
 
