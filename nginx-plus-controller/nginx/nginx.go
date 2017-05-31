@@ -18,6 +18,7 @@ type NginxController struct {
 	nginxConfdPath string
 	nginxCertsPath string
 	local          bool
+	healthStatus   bool
 }
 
 // IngressNginxConfig describes an NGINX configuration
@@ -101,13 +102,14 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool) (*N
 		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
 		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
 		local:          local,
+		healthStatus:   healthStatus,
 	}
 
 	if !local {
 		createDir(ngxc.nginxCertsPath)
 	}
 
-	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize, HealthStatus: healthStatus}
+	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize}
 	ngxc.UpdateMainConfigFile(cfg)
 
 	return &ngxc, nil
@@ -272,6 +274,8 @@ func shellOut(cmd string) (err error) {
 
 // UpdateMainConfigFile update the main NGINX configuration file
 func (nginx *NginxController) UpdateMainConfigFile(cfg *NginxMainConfig) {
+	cfg.HealthStatus = nginx.healthStatus
+
 	tmpl, err := template.New("nginx.conf.tmpl").ParseFiles("nginx.conf.tmpl")
 	if err != nil {
 		glog.Fatalf("Failed to parse the main config template file: %v", err)
