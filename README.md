@@ -1,6 +1,6 @@
 # NGINX Ingress Controllers
 
-This repo provides implementations of an Ingress controller for NGINX and NGINX Plus.
+This repo provides implementations of an Ingress controller for NGINX and NGINX Plus. These implementations are different from the NGINX Ingress controller in [kubernetes/ingress repo](https://github.com/kubernetes/ingress).
 
 ## What is Ingress?
 
