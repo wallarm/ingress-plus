@@ -21,7 +21,7 @@ data:
   hsts-max-age: "31536000" # default is 2592000 (1 month).
   hsts-include-subdomains: "True" # default is "False".
   ssl-protocols: "TLSv1.2" # default is "TLSv1 TLSv1.1 TLSv1.2". See http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_protocols
-  ssl-prefer-server-cipher: "True" # default is "False". Enables or disables the ssl_prefer_server_ciphers directive. See http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_prefer_server_ciphers
+  ssl-prefer-server-ciphers: "True" # default is "False". Enables or disables the ssl_prefer_server_ciphers directive. See http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_prefer_server_ciphers
   ssl-ciphers: "HIGH:!aNULL:!MD5" # default is "HIGH:!aNULL:!MD5". See http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_ciphers
   ssl-dhparam-file: |
     -----BEGIN DH PARAMETERS-----
