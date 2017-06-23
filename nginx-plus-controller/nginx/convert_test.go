@@ -4,27 +4,27 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apis/extensions"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
-var configMap = api.ConfigMap{
-	ObjectMeta: api.ObjectMeta{
+var configMap = api_v1.ConfigMap{
+	ObjectMeta: meta_v1.ObjectMeta{
 		Name:      "test",
 		Namespace: "default",
 	},
-	TypeMeta: unversioned.TypeMeta{
+	TypeMeta: meta_v1.TypeMeta{
 		Kind:       "ConfigMap",
 		APIVersion: "v1",
 	},
 }
 var ingress = extensions.Ingress{
-	ObjectMeta: api.ObjectMeta{
+	ObjectMeta: meta_v1.ObjectMeta{
 		Name:      "test",
 		Namespace: "kube-system",
 	},
-	TypeMeta: unversioned.TypeMeta{
+	TypeMeta: meta_v1.TypeMeta{
 		Kind:       "Ingress",
 		APIVersion: "extensions/v1beta1",
 	},

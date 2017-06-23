@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/util/workqueue"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	"github.com/golang/glog"
 )
@@ -119,7 +121,7 @@ func (s *StoreToIngressLister) List() (ing extensions.IngressList, err error) {
 
 // GetServiceIngress gets all the Ingress' that have rules pointing to a service.
 // Note that this ignores services without the right nodePorts.
-func (s *StoreToIngressLister) GetServiceIngress(svc *api.Service) (ings []extensions.Ingress, err error) {
+func (s *StoreToIngressLister) GetServiceIngress(svc *api_v1.Service) (ings []extensions.Ingress, err error) {
 	for _, m := range s.Store.List() {
 		ing := *m.(*extensions.Ingress)
 		if ing.Namespace != svc.Namespace {
@@ -153,9 +155,49 @@ type StoreToConfigMapLister struct {
 }
 
 // List lists all Ingress' in the store.
-func (s *StoreToConfigMapLister) List() (cfgm api.ConfigMapList, err error) {
+func (s *StoreToConfigMapLister) List() (cfgm api_v1.ConfigMapList, err error) {
 	for _, m := range s.Store.List() {
-		cfgm.Items = append(cfgm.Items, *(m.(*api.ConfigMap)))
+		cfgm.Items = append(cfgm.Items, *(m.(*api_v1.ConfigMap)))
 	}
 	return cfgm, nil
+}
+
+// StoreToEndpointLister makes a Store that lists Endponts
+type StoreToEndpointLister struct {
+	cache.Store
+}
+
+// GetServiceEndpoints returns the endpoints of a service, matched on service name.
+func (s *StoreToEndpointLister) GetServiceEndpoints(svc *api_v1.Service) (ep api_v1.Endpoints, err error) {
+	for _, m := range s.Store.List() {
+		ep = *m.(*api_v1.Endpoints)
+		if svc.Name == ep.Name && svc.Namespace == ep.Namespace {
+			return ep, nil
+		}
+	}
+	err = fmt.Errorf("could not find endpoints for service: %v", svc.Name)
+	return
+}
+
+// FindPort locates the container port for the given pod and portName.  If the
+// targetPort is a number, use that.  If the targetPort is a string, look that
+// string up in all named ports in all containers in the target pod.  If no
+// match is found, fail.
+func FindPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
+	portName := svcPort.TargetPort
+	switch portName.Type {
+	case intstr.String:
+		name := portName.StrVal
+		for _, container := range pod.Spec.Containers {
+			for _, port := range container.Ports {
+				if port.Name == name && port.Protocol == svcPort.Protocol {
+					return port.ContainerPort, nil
+				}
+			}
+		}
+	case intstr.Int:
+		return int32(portName.IntValue()), nil
+	}
+
+	return 0, fmt.Errorf("no suitable port for manifest: %s", pod.UID)
 }

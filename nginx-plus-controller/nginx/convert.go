@@ -5,14 +5,14 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/kubernetes/pkg/api/meta"
-	"k8s.io/kubernetes/pkg/runtime"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // There seems to be no composite interface in the kubernetes api package,
 // so we have to declare our own.
 type apiObject interface {
-	meta.Object
+	meta_v1.Object
 	runtime.Object
 }
 

@@ -8,8 +8,11 @@ import (
 
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/controller"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx"
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 var (
@@ -37,29 +40,38 @@ var (
 
 func main() {
 	flag.Parse()
+	flag.Lookup("logtostderr").Value.Set("true")
 
 	glog.Infof("Starting NGINX Ingress controller Version %v\n", version)
 
-	var kubeClient *client.Client
-	var local = false
-
+	var err error
+	var config *rest.Config
 	if *proxyURL != "" {
-		kubeClient = client.NewOrDie(&client.Config{
-			Host: *proxyURL,
-		})
-		local = true
-	} else {
-		var err error
-		kubeClient, err = client.NewInCluster()
+		config, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{},
+			&clientcmd.ConfigOverrides{
+				ClusterInfo: clientcmdapi.Cluster{
+					Server: *proxyURL,
+				},
+			}).ClientConfig()
 		if err != nil {
-			glog.Fatalf("Failed to create client: %v.", err)
+			glog.Fatalf("error creating client configuration: %v", err)
+		}
+	} else {
+		if config, err = rest.InClusterConfig(); err != nil {
+			glog.Fatalf("error creating client configuration: %v", err)
 		}
 	}
 
-	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus)
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		glog.Fatalf("Failed to create client: %v.", err)
+	}
+
+	ngxc, _ := nginx.NewNginxController("/etc/nginx/", *proxyURL != "", *healthStatus)
 	ngxc.Start()
-	config := nginx.NewDefaultConfig()
-	cnf := nginx.NewConfigurator(ngxc, config)
+	nginxConfig := nginx.NewDefaultConfig()
+	cnf := nginx.NewConfigurator(ngxc, nginxConfig)
 	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps)
 	lbc.Run()
 }

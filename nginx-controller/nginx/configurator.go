@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 const emptyHost = ""
@@ -55,12 +55,12 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 		if !exist {
 			continue
 		}
-		cert, ok := secret.Data[api.TLSCertKey]
+		cert, ok := secret.Data[api_v1.TLSCertKey]
 		if !ok {
 			glog.Warningf("Secret %v has no cert", secretName)
 			continue
 		}
-		key, ok := secret.Data[api.TLSPrivateKeyKey]
+		key, ok := secret.Data[api_v1.TLSPrivateKeyKey]
 		if !ok {
 			glog.Warningf("Secret %v has no private key", secretName)
 			continue

@@ -8,8 +8,11 @@ import (
 
 	"github.com/nginxinc/kubernetes-ingress/nginx-plus-controller/controller"
 	"github.com/nginxinc/kubernetes-ingress/nginx-plus-controller/nginx"
-	"k8s.io/kubernetes/pkg/api"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 var (
@@ -37,33 +40,42 @@ var (
 
 func main() {
 	flag.Parse()
+	flag.Lookup("logtostderr").Value.Set("true")
 
 	glog.Infof("Starting NGINX Plus Ingress controller Version %v\n", version)
 
-	var kubeClient *client.Client
-	var local = false
-
+	var err error
+	var config *rest.Config
 	if *proxyURL != "" {
-		kubeClient = client.NewOrDie(&client.Config{
-			Host: *proxyURL,
-		})
-		local = true
-	} else {
-		var err error
-		kubeClient, err = client.NewInCluster()
+		config, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{},
+			&clientcmd.ConfigOverrides{
+				ClusterInfo: clientcmdapi.Cluster{
+					Server: *proxyURL,
+				},
+			}).ClientConfig()
 		if err != nil {
-			glog.Fatalf("Failed to create client: %v.", err)
+			glog.Fatalf("error creating client configuration: %v", err)
+		}
+	} else {
+		if config, err = rest.InClusterConfig(); err != nil {
+			glog.Fatalf("error creating client configuration: %v", err)
 		}
 	}
 
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		glog.Fatalf("Failed to create client: %v.", err)
+	}
+	local := *proxyURL != ""
 	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus)
 	ngxc.Start()
-	config := nginx.NewDefaultConfig()
+	nginxConfig := nginx.NewDefaultConfig()
 	nginxAPI, err := nginx.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)
 	if err != nil {
 		glog.Fatalf("Failed to create NginxAPIController: %v", err)
 	}
-	cnf := nginx.NewConfigurator(ngxc, config, nginxAPI)
+	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps)
 	lbc.Run()
 }
