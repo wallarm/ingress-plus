@@ -25,16 +25,15 @@ import (
 	"github.com/golang/glog"
 
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx"
-	"k8s.io/kubernetes/pkg/api"
-	podutil "k8s.io/kubernetes/pkg/api/pod"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/controller/framework"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/intstr"
-	"k8s.io/kubernetes/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 const (
@@ -45,14 +44,14 @@ const (
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
-	client               *client.Client
-	ingController        *framework.Controller
-	svcController        *framework.Controller
-	endpController       *framework.Controller
-	cfgmController       *framework.Controller
+	client               kubernetes.Interface
+	ingController        cache.Controller
+	svcController        cache.Controller
+	endpController       cache.Controller
+	cfgmController       cache.Controller
 	ingLister            StoreToIngressLister
-	svcLister            cache.StoreToServiceLister
-	endpLister           cache.StoreToEndpointsLister
+	svcLister            cache.Store
+	endpLister           StoreToEndpointLister
 	cfgmLister           StoreToConfigMapLister
 	ingQueue             *taskQueue
 	endpQueue            *taskQueue
@@ -62,10 +61,10 @@ type LoadBalancerController struct {
 	watchNginxConfigMaps bool
 }
 
-var keyFunc = framework.DeletionHandlingMetaNamespaceKeyFunc
+var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
 		client: kubeClient,
 		stopCh: make(chan struct{}),
@@ -75,7 +74,7 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 	lbc.ingQueue = NewTaskQueue(lbc.syncIng)
 	lbc.endpQueue = NewTaskQueue(lbc.syncEndp)
 
-	ingHandlers := framework.ResourceEventHandlerFuncs{
+	ingHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
 			if !isNginxIngress(addIng) {
@@ -116,28 +115,25 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 			}
 		},
 	}
-	lbc.ingLister.Store, lbc.ingController = framework.NewInformer(
-		&cache.ListWatch{
-			ListFunc:  ingressListFunc(kubeClient, namespace),
-			WatchFunc: ingressWatchFunc(kubeClient, namespace),
-		},
+	lbc.ingLister.Store, lbc.ingController = cache.NewInformer(
+		cache.NewListWatchFromClient(lbc.client.Extensions().RESTClient(), "ingresses", namespace, fields.Everything()),
 		&extensions.Ingress{}, resyncPeriod, ingHandlers)
 
-	svcHandlers := framework.ResourceEventHandlerFuncs{
+	svcHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			addSvc := obj.(*api.Service)
+			addSvc := obj.(*api_v1.Service)
 			glog.V(3).Infof("Adding service: %v", addSvc.Name)
 			lbc.enqueueIngressForService(addSvc)
 		},
 		DeleteFunc: func(obj interface{}) {
-			remSvc, isSvc := obj.(*api.Service)
+			remSvc, isSvc := obj.(*api_v1.Service)
 			if !isSvc {
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					glog.V(3).Infof("Error received unexpected object: %v", obj)
 					return
 				}
-				remSvc, ok = deletedState.Obj.(*api.Service)
+				remSvc, ok = deletedState.Obj.(*api_v1.Service)
 				if !ok {
 					glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-Service object: %v", deletedState.Obj)
 					return
@@ -149,33 +145,30 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
 				glog.V(3).Infof("Service %v changed, syncing",
-					cur.(*api.Service).Name)
-				lbc.enqueueIngressForService(cur.(*api.Service))
+					cur.(*api_v1.Service).Name)
+				lbc.enqueueIngressForService(cur.(*api_v1.Service))
 			}
 		},
 	}
-	lbc.svcLister.Store, lbc.svcController = framework.NewInformer(
-		&cache.ListWatch{
-			ListFunc:  serviceListFunc(kubeClient, namespace),
-			WatchFunc: serviceWatchFunc(kubeClient, namespace),
-		},
-		&api.Service{}, resyncPeriod, svcHandlers)
+	lbc.svcLister, lbc.svcController = cache.NewInformer(
+		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "services", namespace, fields.Everything()),
+		&api_v1.Service{}, resyncPeriod, svcHandlers)
 
-	endpHandlers := framework.ResourceEventHandlerFuncs{
+	endpHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			addEndp := obj.(*api.Endpoints)
+			addEndp := obj.(*api_v1.Endpoints)
 			glog.V(3).Infof("Adding endpoints: %v", addEndp.Name)
 			lbc.endpQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
-			remEndp, isEndp := obj.(*api.Endpoints)
+			remEndp, isEndp := obj.(*api_v1.Endpoints)
 			if !isEndp {
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					glog.V(3).Infof("Error received unexpected object: %v", obj)
 					return
 				}
-				remEndp, ok = deletedState.Obj.(*api.Endpoints)
+				remEndp, ok = deletedState.Obj.(*api_v1.Endpoints)
 				if !ok {
 					glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-Endpoints object: %v", deletedState.Obj)
 					return
@@ -187,17 +180,14 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
 				glog.V(3).Infof("Endpoints %v changed, syncing",
-					cur.(*api.Endpoints).Name)
+					cur.(*api_v1.Endpoints).Name)
 				lbc.endpQueue.enqueue(cur)
 			}
 		},
 	}
-	lbc.endpLister.Store, lbc.endpController = framework.NewInformer(
-		&cache.ListWatch{
-			ListFunc:  endpointsListFunc(kubeClient, namespace),
-			WatchFunc: endpointsWatchFunc(kubeClient, namespace),
-		},
-		&api.Endpoints{}, resyncPeriod, endpHandlers)
+	lbc.endpLister.Store, lbc.endpController = cache.NewInformer(
+		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "endpoints", namespace, fields.Everything()),
+		&api_v1.Endpoints{}, resyncPeriod, endpHandlers)
 
 	if nginxConfigMaps != "" {
 		nginxConfigMapsNS, nginxConfigMapsName, err := parseNginxConfigMaps(nginxConfigMaps)
@@ -207,23 +197,23 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 			lbc.watchNginxConfigMaps = true
 			lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
 
-			cfgmHandlers := framework.ResourceEventHandlerFuncs{
+			cfgmHandlers := cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
-					cfgm := obj.(*api.ConfigMap)
+					cfgm := obj.(*api_v1.ConfigMap)
 					if cfgm.Name == nginxConfigMapsName {
 						glog.V(3).Infof("Adding ConfigMap: %v", cfgm.Name)
 						lbc.cfgmQueue.enqueue(obj)
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
-					cfgm, isCfgm := obj.(*api.ConfigMap)
+					cfgm, isCfgm := obj.(*api_v1.ConfigMap)
 					if !isCfgm {
 						deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 						if !ok {
 							glog.V(3).Infof("Error received unexpected object: %v", obj)
 							return
 						}
-						cfgm, ok = deletedState.Obj.(*api.ConfigMap)
+						cfgm, ok = deletedState.Obj.(*api_v1.ConfigMap)
 						if !ok {
 							glog.V(3).Infof("Error DeletedFinalStateUnknown contained non-CogfigMap object: %v", deletedState.Obj)
 							return
@@ -236,21 +226,18 @@ func NewLoadBalancerController(kubeClient *client.Client, resyncPeriod time.Dura
 				},
 				UpdateFunc: func(old, cur interface{}) {
 					if !reflect.DeepEqual(old, cur) {
-						cfgm := cur.(*api.ConfigMap)
+						cfgm := cur.(*api_v1.ConfigMap)
 						if cfgm.Name == nginxConfigMapsName {
 							glog.V(3).Infof("ConfigMap %v changed, syncing",
-								cur.(*api.ConfigMap).Name)
+								cur.(*api_v1.ConfigMap).Name)
 							lbc.cfgmQueue.enqueue(cur)
 						}
 					}
 				},
 			}
-			lbc.cfgmLister.Store, lbc.cfgmController = framework.NewInformer(
-				&cache.ListWatch{
-					ListFunc:  configMapsListFunc(kubeClient, nginxConfigMapsNS),
-					WatchFunc: configMapsWatchFunc(kubeClient, nginxConfigMapsNS),
-				},
-				&api.ConfigMap{}, resyncPeriod, cfgmHandlers)
+			lbc.cfgmLister.Store, lbc.cfgmController = cache.NewInformer(
+				cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "configmaps", nginxConfigMapsNS, fields.Everything()),
+				&api_v1.ConfigMap{}, resyncPeriod, cfgmHandlers)
 		}
 	}
 
@@ -271,58 +258,10 @@ func (lbc *LoadBalancerController) Run() {
 	<-lbc.stopCh
 }
 
-func ingressListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
-	return func(opts api.ListOptions) (runtime.Object, error) {
-		return c.Extensions().Ingress(ns).List(opts)
-	}
-}
-
-func ingressWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
-	return func(options api.ListOptions) (watch.Interface, error) {
-		return c.Extensions().Ingress(ns).Watch(options)
-	}
-}
-
-func serviceListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
-	return func(opts api.ListOptions) (runtime.Object, error) {
-		return c.Services(ns).List(opts)
-	}
-}
-
-func serviceWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
-	return func(options api.ListOptions) (watch.Interface, error) {
-		return c.Services(ns).Watch(options)
-	}
-}
-
-func endpointsListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
-	return func(opts api.ListOptions) (runtime.Object, error) {
-		return c.Endpoints(ns).List(opts)
-	}
-}
-
-func endpointsWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
-	return func(options api.ListOptions) (watch.Interface, error) {
-		return c.Endpoints(ns).Watch(options)
-	}
-}
-
-func configMapsListFunc(c *client.Client, ns string) func(api.ListOptions) (runtime.Object, error) {
-	return func(opts api.ListOptions) (runtime.Object, error) {
-		return c.ConfigMaps(ns).List(opts)
-	}
-}
-
-func configMapsWatchFunc(c *client.Client, ns string) func(options api.ListOptions) (watch.Interface, error) {
-	return func(options api.ListOptions) (watch.Interface, error) {
-		return c.ConfigMaps(ns).Watch(options)
-	}
-}
-
 func (lbc *LoadBalancerController) syncEndp(key string) {
 	glog.V(3).Infof("Syncing endpoints %v", key)
 
-	obj, endpExists, err := lbc.endpLister.Store.GetByKey(key)
+	obj, endpExists, err := lbc.endpLister.GetByKey(key)
 	if err != nil {
 		lbc.endpQueue.requeue(key, err)
 		return
@@ -351,7 +290,7 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 func (lbc *LoadBalancerController) syncCfgm(key string) {
 	glog.V(3).Infof("Syncing configmap %v", key)
 
-	obj, cfgmExists, err := lbc.cfgmLister.Store.GetByKey(key)
+	obj, cfgmExists, err := lbc.cfgmLister.GetByKey(key)
 	if err != nil {
 		lbc.cfgmQueue.requeue(key, err)
 		return
@@ -359,7 +298,7 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 	cfg := nginx.NewDefaultConfig()
 
 	if cfgmExists {
-		cfgm := obj.(*api.ConfigMap)
+		cfgm := obj.(*api_v1.ConfigMap)
 
 		if serverTokens, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "server-tokens", cfgm); exists {
 			if err != nil {
@@ -578,7 +517,7 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 	}
 }
 
-func (lbc *LoadBalancerController) enqueueIngressForService(svc *api.Service) {
+func (lbc *LoadBalancerController) enqueueIngressForService(svc *api_v1.Service) {
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
 		if !isNginxIngress(&ing) {
@@ -588,7 +527,7 @@ func (lbc *LoadBalancerController) enqueueIngressForService(svc *api.Service) {
 	}
 }
 
-func (lbc *LoadBalancerController) getIngressesForService(svc *api.Service) []extensions.Ingress {
+func (lbc *LoadBalancerController) getIngressesForService(svc *api_v1.Service) []extensions.Ingress {
 	ings, err := lbc.ingLister.GetServiceIngress(svc)
 	if err != nil {
 		glog.V(3).Infof("ignoring service %v: %v", svc.Name, err)
@@ -599,14 +538,14 @@ func (lbc *LoadBalancerController) getIngressesForService(svc *api.Service) []ex
 
 func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []extensions.Ingress {
 	var ings []extensions.Ingress
-	endp := obj.(*api.Endpoints)
+	endp := obj.(*api_v1.Endpoints)
 	svcKey := endp.GetNamespace() + "/" + endp.GetName()
-	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
 	if err != nil {
 		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
 	} else {
 		if svcExists {
-			ings = append(ings, lbc.getIngressesForService(svcObj.(*api.Service))...)
+			ings = append(ings, lbc.getIngressesForService(svcObj.(*api_v1.Service))...)
 		}
 	}
 	return ings
@@ -617,10 +556,10 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 		Ingress: ing,
 	}
 
-	ingEx.Secrets = make(map[string]*api.Secret)
+	ingEx.Secrets = make(map[string]*api_v1.Secret)
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
-		secret, err := lbc.client.Secrets(ing.Namespace).Get(secretName)
+		secret, err := lbc.client.Core().Secrets(ing.Namespace).Get(secretName, meta_v1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
@@ -676,13 +615,13 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *extens
 	return result, nil
 }
 
-func (lbc *LoadBalancerController) getEndpointsForPort(endps api.Endpoints, ingSvcPort intstr.IntOrString, svc *api.Service) ([]string, error) {
-	var targetPort int
+func (lbc *LoadBalancerController) getEndpointsForPort(endps api_v1.Endpoints, ingSvcPort intstr.IntOrString, svc *api_v1.Service) ([]string, error) {
+	var targetPort int32
 	var err error
 	found := false
 
 	for _, port := range svc.Spec.Ports {
-		if (ingSvcPort.Type == intstr.Int && port.Port == ingSvcPort.IntValue()) || (ingSvcPort.Type == intstr.String && port.Name == ingSvcPort.String()) {
+		if (ingSvcPort.Type == intstr.Int && port.Port == int32(ingSvcPort.IntValue())) || (ingSvcPort.Type == intstr.String && port.Name == ingSvcPort.String()) {
 			targetPort, err = lbc.getTargetPort(&port, svc)
 			if err != nil {
 				return nil, fmt.Errorf("Error determining target port for port %v in Ingress: %v", ingSvcPort, err)
@@ -712,16 +651,16 @@ func (lbc *LoadBalancerController) getEndpointsForPort(endps api.Endpoints, ingS
 	return nil, fmt.Errorf("No endpoints for target port %v in service %s", targetPort, svc.Name)
 }
 
-func (lbc *LoadBalancerController) getTargetPort(svcPort *api.ServicePort, svc *api.Service) (int, error) {
+func (lbc *LoadBalancerController) getTargetPort(svcPort *api_v1.ServicePort, svc *api_v1.Service) (int32, error) {
 	if (svcPort.TargetPort == intstr.IntOrString{}) {
 		return svcPort.Port, nil
 	}
 
 	if svcPort.TargetPort.Type == intstr.Int {
-		return svcPort.TargetPort.IntValue(), nil
+		return int32(svcPort.TargetPort.IntValue()), nil
 	}
 
-	pods, err := lbc.client.Pods(svc.Namespace).List(api.ListOptions{LabelSelector: labels.Set(svc.Spec.Selector).AsSelector()})
+	pods, err := lbc.client.Core().Pods(svc.Namespace).List(meta_v1.ListOptions{LabelSelector: labels.Set(svc.Spec.Selector).String()})
 	if err != nil {
 		return 0, fmt.Errorf("Error getting pod information: %v", err)
 	}
@@ -732,7 +671,7 @@ func (lbc *LoadBalancerController) getTargetPort(svcPort *api.ServicePort, svc *
 
 	pod := &pods.Items[0]
 
-	portNum, err := podutil.FindPort(pod, svcPort)
+	portNum, err := FindPort(pod, svcPort)
 	if err != nil {
 		return 0, fmt.Errorf("Error finding named port %v in pod %s: %v", svcPort, pod.Name, err)
 	}
@@ -740,15 +679,15 @@ func (lbc *LoadBalancerController) getTargetPort(svcPort *api.ServicePort, svc *
 	return portNum, nil
 }
 
-func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api.Service, error) {
+func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api_v1.Service, error) {
 	svcKey := namespace + "/" + backend.ServiceName
-	svcObj, svcExists, err := lbc.svcLister.Store.GetByKey(svcKey)
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
 	if err != nil {
 		return nil, err
 	}
 
 	if svcExists {
-		return svcObj.(*api.Service), nil
+		return svcObj.(*api_v1.Service), nil
 	}
 
 	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
