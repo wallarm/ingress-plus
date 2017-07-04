@@ -4,14 +4,14 @@
 
 * Kubernetes 1.2 and later (TLS support for Ingress has been added in 1.2)
 * For NGINX Plus:
-  * Build and make available in your cluster the [NGINX Plus](../../nginx-plus-controller) controller image
+  * Build and make available in your cluster the [Ingress controller](../../nginx-controller) image.
   * Update the container image field in the ```nginx-plus-ingress-rc.yaml``` file accordingly.
 
 ## Running the Example
 
 ## 1. Deploy the Ingress Controller
 
-1. Create either an NGINX or an NGINX Plus Ingress controller:
+1. Create an Ingress controller either for NGINX or NGINX Plus:
   ```
   $ kubectl create -f nginx-ingress-rc.yaml
   ```
@@ -116,5 +116,5 @@ certificate and the --resolve option to set the Host header of a request with ``
   </html>
   ```
 
-  1. If you're using the Plus controller, you can open the live activity monitoring dashboard, which is available at http://XXX.YYY.ZZZ.III:8080/status.html
+  1. If you're using NGINX Plus, you can open the live activity monitoring dashboard, which is available at http://XXX.YYY.ZZZ.III:8080/status.html
   If you go to the Upstream tab, you'll see: ![dashboard](dashboard.png)

@@ -59,16 +59,18 @@ type LoadBalancerController struct {
 	stopCh               chan struct{}
 	cnf                  *nginx.Configurator
 	watchNginxConfigMaps bool
+	nginxPlus            bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, nginxPlus bool) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
-		client: kubeClient,
-		stopCh: make(chan struct{}),
-		cnf:    cnf,
+		client:    kubeClient,
+		stopCh:    make(chan struct{}),
+		cnf:       cnf,
+		nginxPlus: nginxPlus,
 	}
 
 	lbc.ingQueue = NewTaskQueue(lbc.syncIng)
@@ -302,9 +304,16 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 
 		if serverTokens, exists, err := nginx.GetMapKeyAsBool(cfgm.Data, "server-tokens", cfgm); exists {
 			if err != nil {
-				glog.Error(err)
+				if lbc.nginxPlus {
+					cfg.ServerTokens = cfgm.Data["server-tokens"]
+				} else {
+					glog.Error(err)
+				}
 			} else {
-				cfg.ServerTokens = serverTokens
+				cfg.ServerTokens = "off"
+				if serverTokens {
+					cfg.ServerTokens = "on"
+				}
 			}
 		}
 
