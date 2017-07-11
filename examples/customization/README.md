@@ -30,7 +30,7 @@ The table below summarizes some of the options. More options (extensions) are av
 | N/A | `set-real-ip-from` | Sets the value of the [set_real_ip_from](http://nginx.org/en/docs/http/ngx_http_realip_module.html#set_real_ip_from) directive. | N/A |
 | N/A | `real-ip-header` | Sets the value of the [real_ip_header](http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_header) directive. | `X-Real-IP`|
 | N/A | `real-ip-recursive` | Enables or disables the [real_ip_recursive](http://nginx.org/en/docs/http/ngx_http_realip_module.html#real_ip_recursive) directive. | `False`|
-| `nginx.org/server-tokens` | `server-tokens` | Enables or disables the [server_tokens](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_tokens) directive. Additionally, with the NGINX Plus controller, you can specify a custom string value. The empty string value disables the emission of the “Server” field. | `True`|
+| `nginx.org/server-tokens` | `server-tokens` | Enables or disables the [server_tokens](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_tokens) directive. Additionally, with the NGINX Plus, you can specify a custom string value, including the empty string value, which disables the emission of the “Server” field. | `True`|
 | N/A | `http-snippets` | Sets a custom snippet in http context. | N/A |
 | `nginx.org/location-snippets` | `location-snippets` | Sets a custom snippet in location context. | N/A |
 | `nginx.org/server-snippets` | `server-snippets` | Sets a custom snippet in server context. | N/A |

@@ -15,10 +15,12 @@ const dhparamFilename = "dhparam.pem"
 
 // NginxController Updates NGINX configuration, starts and reloads NGINX
 type NginxController struct {
-	nginxConfdPath string
-	nginxCertsPath string
-	local          bool
-	healthStatus   bool
+	nginxConfdPath          string
+	nginxCertsPath          string
+	local                   bool
+	healthStatus            bool
+	nginxConfTemplatePath   string
+	nginxIngressTempatePath string
 }
 
 // IngressNginxConfig describes an NGINX configuration
@@ -31,6 +33,7 @@ type IngressNginxConfig struct {
 type Upstream struct {
 	Name            string
 	UpstreamServers []UpstreamServer
+	StickyCookie    string
 }
 
 // UpstreamServer describes a server in an NGINX upstream
@@ -43,11 +46,12 @@ type UpstreamServer struct {
 type Server struct {
 	ServerSnippets        []string
 	Name                  string
-	ServerTokens          bool
+	ServerTokens          string
 	Locations             []Location
 	SSL                   bool
 	SSLCertificate        string
 	SSLCertificateKey     string
+	StatusZone            string
 	HTTP2                 bool
 	RedirectToHTTPS       bool
 	ProxyProtocol         bool
@@ -105,12 +109,14 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 }
 
 // NewNginxController creates a NGINX controller
-func NewNginxController(nginxConfPath string, local bool, healthStatus bool) (*NginxController, error) {
+func NewNginxController(nginxConfPath string, local bool, healthStatus bool, nginxConfTemplatePath string, nginxIngressTemplatePath string) (*NginxController, error) {
 	ngxc := NginxController{
-		nginxConfdPath: path.Join(nginxConfPath, "conf.d"),
-		nginxCertsPath: path.Join(nginxConfPath, "ssl"),
-		local:          local,
-		healthStatus:   healthStatus,
+		nginxConfdPath:          path.Join(nginxConfPath, "conf.d"),
+		nginxCertsPath:          path.Join(nginxConfPath, "ssl"),
+		local:                   local,
+		healthStatus:            healthStatus,
+		nginxConfTemplatePath:   nginxConfTemplatePath,
+		nginxIngressTempatePath: nginxIngressTemplatePath,
 	}
 
 	if !local {
@@ -198,9 +204,9 @@ func (nginx *NginxController) getIngressNginxConfigFileName(name string) string 
 }
 
 func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
-	tmpl, err := template.New("ingress.tmpl").ParseFiles("ingress.tmpl")
+	tmpl, err := template.New(nginx.nginxIngressTempatePath).ParseFiles(nginx.nginxIngressTempatePath)
 	if err != nil {
-		glog.Fatal("Failed to parse template file")
+		glog.Fatalf("Failed to parse template file: %v", err)
 	}
 
 	glog.V(3).Infof("Writing NGINX conf to %v", filename)
@@ -285,7 +291,7 @@ func shellOut(cmd string) (err error) {
 func (nginx *NginxController) UpdateMainConfigFile(cfg *NginxMainConfig) {
 	cfg.HealthStatus = nginx.healthStatus
 
-	tmpl, err := template.New("nginx.conf.tmpl").ParseFiles("nginx.conf.tmpl")
+	tmpl, err := template.New(nginx.nginxConfTemplatePath).ParseFiles(nginx.nginxConfTemplatePath)
 	if err != nil {
 		glog.Fatalf("Failed to parse the main config template file: %v", err)
 	}

@@ -5,7 +5,7 @@ FROM nginx:1.13.0
 RUN ln -sf /proc/1/fd/1 /var/log/nginx/access.log \
 	&& ln -sf /proc/1/fd/2 /var/log/nginx/error.log
 
-COPY nginx-ingress nginx/ingress.tmpl nginx/nginx.conf.tmpl /
+COPY nginx-ingress nginx/templates/nginx.ingress.tmpl nginx/templates/nginx.tmpl /
 
 RUN rm /etc/nginx/conf.d/*
 

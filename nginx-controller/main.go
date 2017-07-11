@@ -8,6 +8,7 @@ import (
 
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/controller"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx"
+	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/rest"
@@ -36,6 +37,9 @@ var (
 	nginxConfigMaps = flag.String("nginx-configmaps", "",
 		`Specifies a configmaps resource that can be used to customize NGINX
 		configuration. The value must follow the following format: <namespace>/<name>`)
+
+	nginxPlus = flag.Bool("nginx-plus", false,
+		`Enables support for NGINX Plus.`)
 )
 
 func main() {
@@ -68,10 +72,27 @@ func main() {
 		glog.Fatalf("Failed to create client: %v.", err)
 	}
 
-	ngxc, _ := nginx.NewNginxController("/etc/nginx/", *proxyURL != "", *healthStatus)
+	local := *proxyURL != ""
+
+	nginxConfTemplatePath := "nginx.tmpl"
+	nginxIngressTemplatePath := "nginx.ingress.tmpl"
+	if *nginxPlus {
+		nginxConfTemplatePath = "nginx-plus.tmpl"
+		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
+	}
+	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus, nginxConfTemplatePath, nginxIngressTemplatePath)
 	ngxc.Start()
+
 	nginxConfig := nginx.NewDefaultConfig()
-	cnf := nginx.NewConfigurator(ngxc, nginxConfig)
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps)
+	var nginxAPI *plus.NginxAPIController
+	if *nginxPlus {
+		nginxAPI, err = plus.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)
+		if err != nil {
+			glog.Fatalf("Failed to create NginxAPIController: %v", err)
+		}
+	}
+	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
+
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *nginxPlus)
 	lbc.Run()
 }

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/glog"
+	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -14,16 +16,18 @@ const emptyHost = ""
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
-	nginx  *NginxController
-	config *Config
-	lock   sync.Mutex
+	nginx    *NginxController
+	config   *Config
+	lock     sync.Mutex
+	nginxAPI *plus.NginxAPIController
 }
 
 // NewConfigurator creates a new Configurator
-func NewConfigurator(nginx *NginxController, config *Config) *Configurator {
+func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *plus.NginxAPIController) *Configurator {
 	cnf := Configurator{
-		nginx:  nginx,
-		config: config,
+		nginx:    nginx,
+		config:   config,
+		nginxAPI: nginxAPI,
 	}
 
 	return &cnf
@@ -43,6 +47,11 @@ func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
 	if err := cnf.nginx.Reload(); err != nil {
 		glog.Errorf("Error when adding or updating ingress %q: %q", name, err)
+	} else {
+		if cnf.isPlus() {
+			time.Sleep(500 * time.Millisecond)
+			cnf.updatePlusEndpoints(name, ingEx)
+		}
 	}
 }
 
@@ -85,12 +94,13 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	upstreams := make(map[string]Upstream)
 
 	wsServices := getWebsocketServices(ingEx)
+	spServices := getSessionPersistenceServices(ingEx)
 	rewrites := getRewrites(ingEx)
 	sslServices := getSSLServices(ingEx)
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace)
+		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace, spServices[ingEx.Ingress.Spec.Backend.ServiceName])
 		upstreams[name] = upstream
 	}
 
@@ -103,7 +113,9 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		serverName := rule.Host
 
+		statuzZone := rule.Host
 		if rule.Host == emptyHost {
+			statuzZone = ingEx.Ingress.Namespace + "-" + ingEx.Ingress.Name
 			glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 		}
 
@@ -116,6 +128,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			StatusZone:            statuzZone,
 			RealIPHeader:          ingCfg.RealIPHeader,
 			SetRealIPFrom:         ingCfg.SetRealIPFrom,
 			RealIPRecursive:       ingCfg.RealIPRecursive,
@@ -137,7 +150,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace)
+				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName])
 				upstreams[upsName] = upstream
 			}
 
@@ -160,8 +173,11 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	}
 
 	if len(ingEx.Ingress.Spec.Rules) == 0 && ingEx.Ingress.Spec.Backend != nil {
+		serverName := emptyHost
+		statuzZone := ingEx.Ingress.Namespace + "-" + ingEx.Ingress.Name
+		glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 		server := Server{
-			Name:                  emptyHost,
+			Name:                  serverName,
 			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
 			RedirectToHTTPS:       ingCfg.RedirectToHTTPS,
@@ -169,6 +185,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
 			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
+			StatusZone:            statuzZone,
 			RealIPHeader:          ingCfg.RealIPHeader,
 			SetRealIPFrom:         ingCfg.SetRealIPFrom,
 			RealIPRecursive:       ingCfg.RealIPRecursive,
@@ -201,9 +218,16 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	ingCfg := *cnf.config
 	if serverTokens, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/server-tokens", ingEx.Ingress); exists {
 		if err != nil {
-			glog.Error(err)
+			if cnf.isPlus() {
+				ingCfg.ServerTokens = ingEx.Ingress.Annotations["nginx.org/server-tokens"]
+			} else {
+				glog.Error(err)
+			}
 		} else {
-			ingCfg.ServerTokens = serverTokens
+			ingCfg.ServerTokens = "off"
+			if serverTokens {
+				ingCfg.ServerTokens = "on"
+			}
 		}
 	}
 
@@ -370,6 +394,37 @@ func getSSLServices(ingEx *IngressEx) map[string]bool {
 	return sslServices
 }
 
+func getSessionPersistenceServices(ingEx *IngressEx) map[string]string {
+	spServices := make(map[string]string)
+
+	if services, exists := ingEx.Ingress.Annotations["nginx.com/sticky-cookie-services"]; exists {
+		for _, svc := range strings.Split(services, ";") {
+			if serviceName, sticky, err := parseStickyService(svc); err != nil {
+				glog.Errorf("In %v nginx.com/sticky-cookie-services contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
+			} else {
+				spServices[serviceName] = sticky
+			}
+		}
+	}
+
+	return spServices
+}
+
+func parseStickyService(service string) (serviceName string, stickyCookie string, err error) {
+	parts := strings.SplitN(service, " ", 2)
+
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", service)
+	}
+
+	svcNameParts := strings.Split(parts[0], "=")
+	if len(svcNameParts) != 2 {
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", svcNameParts)
+	}
+
+	return svcNameParts[1], parts[1], nil
+}
+
 func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool) Location {
 	loc := Location{
 		Path:                 path,
@@ -390,7 +445,11 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 	return loc
 }
 
-func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string) Upstream {
+func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string) Upstream {
+	if cnf.isPlus() {
+		return Upstream{Name: name, StickyCookie: stickyCookie}
+	}
+
 	ups := NewUpstreamWithDefaultServer(name)
 
 	endps, exists := ingEx.Endpoints[backend.ServiceName+backend.ServicePort.String()]
@@ -442,7 +501,42 @@ func (cnf *Configurator) DeleteIngress(name string) {
 
 // UpdateEndpoints updates endpoints in NGINX configuration for an Ingress resource
 func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) {
-	cnf.AddOrUpdateIngress(name, ingEx)
+	if cnf.isPlus() {
+		cnf.lock.Lock()
+		defer cnf.lock.Unlock()
+
+		cnf.updatePlusEndpoints(name, ingEx)
+	} else {
+		cnf.AddOrUpdateIngress(name, ingEx)
+	}
+}
+
+func (cnf *Configurator) updatePlusEndpoints(name string, ingEx *IngressEx) {
+	if ingEx.Ingress.Spec.Backend != nil {
+		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
+		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName+ingEx.Ingress.Spec.Backend.ServicePort.String()]
+		if exists {
+			err := cnf.nginxAPI.UpdateServers(name, endps)
+			if err != nil {
+				glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
+			}
+		}
+	}
+	for _, rule := range ingEx.Ingress.Spec.Rules {
+		if rule.IngressRuleValue.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			name := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
+			endps, exists := ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()]
+			if exists {
+				err := cnf.nginxAPI.UpdateServers(name, endps)
+				if err != nil {
+					glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
+				}
+			}
+		}
+	}
 }
 
 // UpdateConfig updates NGINX Configuration parameters
@@ -463,4 +557,8 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
+}
+
+func (cnf *Configurator) isPlus() bool {
+	return cnf.nginxAPI != nil
 }

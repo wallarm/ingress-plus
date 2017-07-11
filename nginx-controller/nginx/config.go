@@ -4,7 +4,7 @@ package nginx
 type Config struct {
 	LocationSnippets              []string
 	ServerSnippets                []string
-	ServerTokens                  bool
+	ServerTokens                  string
 	ProxyConnectTimeout           string
 	ProxyReadTimeout              string
 	ClientMaxBodySize             string
@@ -40,7 +40,7 @@ type Config struct {
 // NewDefaultConfig creates a Config with default values
 func NewDefaultConfig() *Config {
 	return &Config{
-		ServerTokens:               true,
+		ServerTokens:               "on",
 		ProxyConnectTimeout:        "60s",
 		ProxyReadTimeout:           "60s",
 		ClientMaxBodySize:          "1m",
