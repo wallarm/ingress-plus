@@ -269,13 +269,6 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		ingCfg.ClientMaxBodySize = clientMaxBodySize
 	}
-	if HTTP2, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/http2", ingEx.Ingress); exists {
-		if err != nil {
-			glog.Error(err)
-		} else {
-			ingCfg.HTTP2 = HTTP2
-		}
-	}
 	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
 		if err != nil {
 			glog.Error(err)
