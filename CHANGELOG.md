@@ -1,13 +1,23 @@
 # Changelog
 
+### 0.9.0
+
+* [156](https://github.com/nginxinc/kubernetes-ingress/pull/156): Write a pem file with an SSL certificate and key atomically.
+* [155](https://github.com/nginxinc/kubernetes-ingress/pull/155): Remove http2 annotation (http/2 can be enabled globally in the ConfigMap).
+* [154](https://github.com/nginxinc/kubernetes-ingress/pull/154): Merge NGINX and NGINX Plus Ingress controller implementations.
+* [151](https://github.com/nginxinc/kubernetes-ingress/pull/151): Use k8s.io/client-go.
+* [146](https://github.com/nginxinc/kubernetes-ingress/pull/146): Fix health status.
+* [141](https://github.com/nginxinc/kubernetes-ingress/pull/141): Set `worker_processes` to `auto` in NGINX configuration. Thanks to [Andreas Krüger](https://github.com/woopstar).
+* [140](https://github.com/nginxinc/kubernetes-ingress/pull/140): Fix an error message. Thanks to [Andreas Krüger](https://github.com/woopstar).
+* Update NGINX to version 1.13.3.
+
 ### 0.8.1
 
 * Update NGINX version to 1.13.0.
 
 ### 0.8.0
 
-* [117](https://github.com/nginxinc/kubernetes-ingress/pull/117): Add a customization option: location-snippets, server-snippets and http-snippets. Thanks to [rchicoli
-](https://github.com/rchicoli).
+* [117](https://github.com/nginxinc/kubernetes-ingress/pull/117): Add a customization option: location-snippets, server-snippets and http-snippets. Thanks to [rchicoli](https://github.com/rchicoli).
 * [116](https://github.com/nginxinc/kubernetes-ingress/pull/116): Add support for the 301 redirect to https based on the `http_x_forwarded_proto` header. Thanks to [Chris](https://github.com/cwhenderson20).
 * Update NGINX version to 1.11.13.
 * Makefile updates: gcloud docker push command; golang container was updated to 1.8.

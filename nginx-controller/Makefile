@@ -1,6 +1,6 @@
 all: push
 
-VERSION = 0.8.1
+VERSION = 0.9.0
 TAG = $(VERSION)
 PREFIX = nginxdemos/nginx-ingress
 
