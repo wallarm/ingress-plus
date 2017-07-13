@@ -3,6 +3,7 @@ package nginx
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -174,25 +175,34 @@ func (nginx *NginxController) AddOrUpdateCertAndKey(name string, cert string, ke
 	pemFileName := nginx.nginxCertsPath + "/" + name + ".pem"
 
 	if !nginx.local {
-		pem, err := os.Create(pemFileName)
+		pem, err := ioutil.TempFile(nginx.nginxCertsPath, name)
 		if err != nil {
-			glog.Fatalf("Couldn't create pem file %v: %v", pemFileName, err)
+			glog.Fatalf("Couldn't create a temp file for the pem file %v: %v", name, err)
 		}
-		defer pem.Close()
 
 		_, err = pem.WriteString(key)
 		if err != nil {
-			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
+			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
 		}
 
 		_, err = pem.WriteString("\n")
 		if err != nil {
-			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
+			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
 		}
 
 		_, err = pem.WriteString(cert)
 		if err != nil {
-			glog.Fatalf("Couldn't write to pem file %v: %v", pemFileName, err)
+			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
+		}
+
+		err = pem.Close()
+		if err != nil {
+			glog.Fatalf("Couldn't close the temp pem file %v: %v", pem.Name(), err)
+		}
+
+		err = os.Rename(pem.Name(), pemFileName)
+		if err != nil {
+			glog.Fatalf("Fail to rename the temp pem file %v to %v: %v", pem.Name(), pemFileName, err)
 		}
 	}
 
