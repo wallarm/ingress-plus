@@ -258,13 +258,30 @@ func (nginx *NginxController) Reload() error {
 }
 
 // Start starts NGINX
-func (nginx *NginxController) Start() {
+func (nginx *NginxController) Start(done chan error) {
 	if !nginx.local {
-		if err := shellOut("nginx"); err != nil {
+		cmd := exec.Command("nginx")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
 			glog.Fatalf("Failed to start nginx: %v", err)
 		}
+		go func() {
+			done <- cmd.Wait()
+		}()
 	} else {
 		glog.V(3).Info("Starting nginx")
+	}
+}
+
+// Quit shutdowns NGINX gracefully
+func (nginx *NginxController) Quit() {
+	if !nginx.local {
+		if err := shellOut("nginx -s quit"); err != nil {
+			glog.Fatalf("Failed to quit nginx: %v", err)
+		}
+	} else {
+		glog.V(3).Info("Quitting nginx")
 	}
 }
 
