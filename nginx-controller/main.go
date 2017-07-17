@@ -2,6 +2,9 @@ package main
 
 import (
 	"flag"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/golang/glog"
@@ -81,11 +84,13 @@ func main() {
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 	}
 	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus, nginxConfTemplatePath, nginxIngressTemplatePath)
-	ngxc.Start()
+	nginxDone := make(chan error, 1)
+	ngxc.Start(nginxDone)
 
 	nginxConfig := nginx.NewDefaultConfig()
 	var nginxAPI *plus.NginxAPIController
 	if *nginxPlus {
+		time.Sleep(500 * time.Millisecond)
 		nginxAPI, err = plus.NewNginxAPIController("http://127.0.0.1:8080/upstream_conf", "http://127.0.0.1:8080/status", local)
 		if err != nil {
 			glog.Fatalf("Failed to create NginxAPIController: %v", err)
@@ -94,5 +99,44 @@ func main() {
 	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 
 	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *nginxPlus)
+	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()
+
+	for {
+		glog.Info("Waiting for the controller to exit...")
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func handleTermination(lbc *controller.LoadBalancerController, ngxc *nginx.NginxController, nginxDone chan error) {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM)
+
+	exitStatus := 0
+	exited := false
+
+	select {
+	case err := <-nginxDone:
+		if err != nil {
+			glog.Errorf("nginx command exited with an error: %v", err)
+			exitStatus = 1
+		} else {
+			glog.Info("nginx command exited succesfully")
+		}
+		exited = true
+	case <-signalChan:
+		glog.Infof("Received SIGTERM, shutting down")
+	}
+
+	glog.Infof("Shutting down the controller")
+	lbc.Stop()
+
+	if !exited {
+		glog.Infof("Shutting down NGINX")
+		ngxc.Quit()
+		<-nginxDone
+	}
+
+	glog.Infof("Exiting with a status: %v", exitStatus)
+	os.Exit(exitStatus)
 }

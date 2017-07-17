@@ -260,6 +260,17 @@ func (lbc *LoadBalancerController) Run() {
 	<-lbc.stopCh
 }
 
+// Stop shutdowns the load balancer controller
+func (lbc *LoadBalancerController) Stop() {
+	close(lbc.stopCh)
+
+	lbc.ingQueue.shutdown()
+	if lbc.watchNginxConfigMaps {
+		lbc.cfgmQueue.shutdown()
+	}
+	lbc.endpQueue.shutdown()
+}
+
 func (lbc *LoadBalancerController) syncEndp(key string) {
 	glog.V(3).Infof("Syncing endpoints %v", key)
 
