@@ -1,10 +1,11 @@
 {{range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
 	zone {{$upstream.Name}} 256k;
+	{{range $server := $upstream.UpstreamServers}}
+	server {{$server.Address}}:{{$server.Port}};{{end}}
 	{{if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{end}}
-	state /var/lib/nginx/state/{{$upstream.Name}}.state;
 }{{end}}
 
 {{range $server := .Servers}}
