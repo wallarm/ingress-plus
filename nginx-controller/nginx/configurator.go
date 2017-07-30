@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/golang/glog"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
@@ -38,21 +37,22 @@ func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
 }
 
 // AddOrUpdateIngress adds or updates NGINX configuration for an Ingress resource
-func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) {
+func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) error {
 	cnf.lock.Lock()
 	defer cnf.lock.Unlock()
 
+	cnf.addOrUpdateIngress(name, ingEx)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when adding or updating ingress %v: %v", name, err)
+	}
+	return nil
+}
+
+func (cnf *Configurator) addOrUpdateIngress(name string, ingEx *IngressEx) {
 	pems := cnf.updateCertificates(ingEx)
 	nginxCfg := cnf.generateNginxCfg(ingEx, pems)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
-	if err := cnf.nginx.Reload(); err != nil {
-		glog.Errorf("Error when adding or updating ingress %q: %q", name, err)
-	} else {
-		if cnf.isPlus() {
-			time.Sleep(500 * time.Millisecond)
-			cnf.updatePlusEndpoints(name, ingEx)
-		}
-	}
 }
 
 func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string {
@@ -439,11 +439,13 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 }
 
 func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string) Upstream {
-	if cnf.isPlus() {
-		return Upstream{Name: name, StickyCookie: stickyCookie}
-	}
+	var ups Upstream
 
-	ups := NewUpstreamWithDefaultServer(name)
+	if cnf.isPlus() {
+		ups = Upstream{Name: name, StickyCookie: stickyCookie}
+	} else {
+		ups = NewUpstreamWithDefaultServer(name)
+	}
 
 	endps, exists := ingEx.Endpoints[backend.ServiceName+backend.ServicePort.String()]
 	if exists {
@@ -482,26 +484,32 @@ func upstreamMapToSlice(upstreams map[string]Upstream) []Upstream {
 }
 
 // DeleteIngress deletes NGINX configuration for an Ingress resource
-func (cnf *Configurator) DeleteIngress(name string) {
+func (cnf *Configurator) DeleteIngress(name string) error {
 	cnf.lock.Lock()
 	defer cnf.lock.Unlock()
 
 	cnf.nginx.DeleteIngress(name)
 	if err := cnf.nginx.Reload(); err != nil {
-		glog.Errorf("Error when removing ingress %q: %q", name, err)
+		return fmt.Errorf("Error when removing ingress %v: %v", name, err)
 	}
+	return nil
 }
 
 // UpdateEndpoints updates endpoints in NGINX configuration for an Ingress resource
-func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) {
-	if cnf.isPlus() {
-		cnf.lock.Lock()
-		defer cnf.lock.Unlock()
+func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) error {
+	cnf.lock.Lock()
+	defer cnf.lock.Unlock()
 
+	if cnf.isPlus() {
+		cnf.addOrUpdateIngress(name, ingEx)
 		cnf.updatePlusEndpoints(name, ingEx)
 	} else {
-		cnf.AddOrUpdateIngress(name, ingEx)
+		cnf.addOrUpdateIngress(name, ingEx)
+		if err := cnf.nginx.Reload(); err != nil {
+			return fmt.Errorf("Error reloading NGINX when updating endpoints for %v: %v", name, err)
+		}
 	}
+	return nil
 }
 
 func (cnf *Configurator) updatePlusEndpoints(name string, ingEx *IngressEx) {
@@ -533,7 +541,7 @@ func (cnf *Configurator) updatePlusEndpoints(name string, ingEx *IngressEx) {
 }
 
 // UpdateConfig updates NGINX Configuration parameters
-func (cnf *Configurator) UpdateConfig(config *Config) {
+func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) error {
 	cnf.lock.Lock()
 	defer cnf.lock.Unlock()
 
@@ -550,6 +558,16 @@ func (cnf *Configurator) UpdateConfig(config *Config) {
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
+
+	for _, ingEx := range ingExes {
+		cnf.addOrUpdateIngress(ingEx.Ingress.Namespace+"-"+ingEx.Ingress.Name, ingEx)
+	}
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when updating config from ConfigMap: %v", err)
+	}
+
+	return nil
 }
 
 func (cnf *Configurator) isPlus() bool {

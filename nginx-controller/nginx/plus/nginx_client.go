@@ -129,7 +129,7 @@ func (client *NginxClient) AddHTTPServer(upstream string, server string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed to add %v server to %v upstream: got expected 200 response, got %v", server, upstream, resp.StatusCode)
+		return fmt.Errorf("Failed to add %v server to %v upstream: expected 200 response, got %v", server, upstream, resp.StatusCode)
 	}
 
 	return nil
@@ -153,8 +153,8 @@ func (client *NginxClient) DeleteHTTPServer(upstream string, server string) erro
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed to add %v server to %v upstream: got expected 200 response, got %v", server, upstream, resp.StatusCode)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("Failed to add %v server to %v upstream: expected 200 or 204 response, got %v", server, upstream, resp.StatusCode)
 	}
 
 	return nil

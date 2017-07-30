@@ -29,7 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
+	scheme "k8s.io/client-go/kubernetes/scheme"
+	core_v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
@@ -60,6 +63,7 @@ type LoadBalancerController struct {
 	cnf                  *nginx.Configurator
 	watchNginxConfigMaps bool
 	nginxPlus            bool
+	recorder             record.EventRecorder
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -72,6 +76,14 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		cnf:       cnf,
 		nginxPlus: nginxPlus,
 	}
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
+		Interface: core_v1.New(kubeClient.Core().RESTClient()).Events(""),
+	})
+	lbc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
+		api_v1.EventSource{Component: "nginx-ingress-controller"})
 
 	lbc.ingQueue = NewTaskQueue(lbc.syncIng)
 	lbc.endpQueue = NewTaskQueue(lbc.syncEndp)
@@ -289,15 +301,17 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 			}
 			ingEx, err := lbc.createIngress(&ing)
 			if err != nil {
-				glog.Warningf("Error updating endpoints for %v/%v: %v, skipping", ing.Namespace, ing.Name, err)
+				glog.Errorf("Error updating endpoints for %v/%v: %v, skipping", ing.Namespace, ing.Name, err)
 				continue
 			}
 			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Name, ing.Namespace)
 			name := ing.Namespace + "-" + ing.Name
 			lbc.cnf.UpdateEndpoints(name, ingEx)
+			if err != nil {
+				glog.Errorf("Error updating endpoints for %v/%v: %v", ing.Namespace, ing.Name, err)
+			}
 		}
 	}
-
 }
 
 func (lbc *LoadBalancerController) syncCfgm(key string) {
@@ -498,14 +512,38 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 		}
 
 	}
-	lbc.cnf.UpdateConfig(cfg)
 
+	var ingExes []*nginx.IngressEx
 	ings, _ := lbc.ingLister.List()
-	for _, ing := range ings.Items {
-		if !isNginxIngress(&ing) {
+	for i, _ := range ings.Items {
+		if !isNginxIngress(&ings.Items[i]) {
 			continue
 		}
-		lbc.ingQueue.enqueue(&ing)
+		ingEx, err := lbc.createIngress(&ings.Items[i])
+		if err != nil {
+			continue
+		}
+
+		ingExes = append(ingExes, ingEx)
+	}
+
+	if err := lbc.cnf.UpdateConfig(cfg, ingExes); err != nil {
+		if cfgmExists {
+			cfgm := obj.(*api_v1.ConfigMap)
+			lbc.recorder.Eventf(cfgm, api_v1.EventTypeWarning, "UpdatedWithError", "Configuration from %v was updated, but not applied: %v", key, err)
+		}
+		for _, ingEx := range ingExes {
+			lbc.recorder.Eventf(ingEx.Ingress, api_v1.EventTypeWarning, "UpdatedWithError", "Configuration for %v/%v was updated, but not applied: %v",
+				ingEx.Ingress.Name, ingEx.Ingress.Namespace, err)
+		}
+	} else {
+		if cfgmExists {
+			cfgm := obj.(*api_v1.ConfigMap)
+			lbc.recorder.Eventf(cfgm, api_v1.EventTypeNormal, "Updated", "Configuration from %v was updated", key)
+		}
+		for _, ingEx := range ingExes {
+			lbc.recorder.Eventf(ingEx.Ingress, api_v1.EventTypeNormal, "Updated", "Configuration for %v/%v was updated", ingEx.Ingress.Name, ingEx.Ingress.Namespace)
+		}
 	}
 }
 
@@ -523,7 +561,10 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 
 	if !ingExists {
 		glog.V(2).Infof("Deleting Ingress: %v\n", key)
-		lbc.cnf.DeleteIngress(name)
+		err := lbc.cnf.DeleteIngress(name)
+		if err != nil {
+			glog.Errorf("Error when deleting configuration for %v: %v", name, err)
+		}
 	} else {
 		glog.V(2).Infof("Adding or Updating Ingress: %v\n", key)
 
@@ -531,9 +572,15 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 		ingEx, err := lbc.createIngress(ing)
 		if err != nil {
 			lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
+			lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "Rejected", "%v was rejected: %v", key, err)
 			return
 		}
-		lbc.cnf.AddOrUpdateIngress(name, ingEx)
+		err = lbc.cnf.AddOrUpdateIngress(name, ingEx)
+		if err != nil {
+			lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "AddedOrUpdatedWithError", "Configuration for %v was added or updated, but not applied: %v", key, err)
+		} else {
+			lbc.recorder.Eventf(ing, api_v1.EventTypeNormal, "AddedOrUpdated", "Configuration for %v was added or updated", key)
+		}
 	}
 }
 
@@ -591,6 +638,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 		endps, err := lbc.getEndpointsForIngressBackend(ing.Spec.Backend, ing.Namespace)
 		if err != nil {
 			glog.Warningf("Error retrieving endpoints for the service %v: %v", ing.Spec.Backend.ServiceName, err)
+			ingEx.Endpoints[ing.Spec.Backend.ServiceName+ing.Spec.Backend.ServicePort.String()] = []string{}
 		} else {
 			ingEx.Endpoints[ing.Spec.Backend.ServiceName+ing.Spec.Backend.ServicePort.String()] = endps
 		}
@@ -605,6 +653,7 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 			endps, err := lbc.getEndpointsForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
 				glog.Warningf("Error retrieving endpoints for the service %v: %v", path.Backend.ServiceName, err)
+				ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()] = []string{}
 			} else {
 				ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()] = endps
 			}
