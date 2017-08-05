@@ -37,7 +37,7 @@ type taskQueue struct {
 	// queue is the work queue the worker polls
 	queue *workqueue.Type
 	// sync is called for each item in the queue
-	sync func(string)
+	sync func(Task)
 	// workerDone is closed when the worker exits
 	workerDone chan struct{}
 }
@@ -50,36 +50,45 @@ func (t *taskQueue) run(period time.Duration, stopCh <-chan struct{}) {
 func (t *taskQueue) enqueue(obj interface{}) {
 	key, err := keyFunc(obj)
 	if err != nil {
-		glog.V(3).Infof("Couldn't get key for object %+v: %v", obj, err)
+		glog.V(3).Infof("Couldn't get key for object %v: %v", obj, err)
 		return
 	}
-	t.queue.Add(key)
+
+	task, err := NewTask(key, obj)
+	if err != nil {
+		glog.V(3).Infof("Couldn't create a task for object %v: %v", obj, err)
+		return
+	}
+
+	glog.V(3).Infof("Adding an element with a key: %v", task.Key)
+
+	t.queue.Add(task)
 }
 
-func (t *taskQueue) requeue(key string, err error) {
-	glog.Errorf("Requeuing %v, err %v", key, err)
-	t.queue.Add(key)
+func (t *taskQueue) requeue(task Task, err error) {
+	glog.Errorf("Requeuing %v, err %v", task.Key, err)
+	t.queue.Add(task)
 }
 
-func (t *taskQueue) requeueAfter(key string, err error, after time.Duration) {
-	glog.Errorf("Requeuing %v after %s, err %v", key, after.String(), err)
-	go func(key string, after time.Duration) {
+func (t *taskQueue) requeueAfter(task Task, err error, after time.Duration) {
+	glog.Errorf("Requeuing %v after %s, err %v", task.Key, after.String(), err)
+	go func(task Task, after time.Duration) {
 		time.Sleep(after)
-		t.queue.Add(key)
-	}(key, after)
+		t.queue.Add(task)
+	}(task, after)
 }
 
 // worker processes work in the queue through sync.
 func (t *taskQueue) worker() {
 	for {
-		key, quit := t.queue.Get()
+		task, quit := t.queue.Get()
 		if quit {
 			close(t.workerDone)
 			return
 		}
-		glog.V(3).Infof("Syncing %v", key)
-		t.sync(key.(string))
-		t.queue.Done(key)
+		glog.V(3).Infof("Syncing %v", task.(Task).Key)
+		t.sync(task.(Task))
+		t.queue.Done(task)
 	}
 }
 
@@ -91,12 +100,47 @@ func (t *taskQueue) shutdown() {
 
 // NewTaskQueue creates a new task queue with the given sync function.
 // The sync function is called for every element inserted into the queue.
-func NewTaskQueue(syncFn func(string)) *taskQueue {
+func NewTaskQueue(syncFn func(Task)) *taskQueue {
 	return &taskQueue{
 		queue:      workqueue.New(),
 		sync:       syncFn,
 		workerDone: make(chan struct{}),
 	}
+}
+
+// Kind represnts the kind of the Kubernetes resources of a task
+type Kind int
+
+const (
+	// Ingress resource
+	Ingress = iota
+	// Endpoints resource
+	Endpoints
+	// ConfigMap resource
+	ConfigMap
+)
+
+// Task is an element of a taskQueue
+type Task struct {
+	Kind Kind
+	Key  string
+}
+
+// NewTask creates a new task
+func NewTask(key string, obj interface{}) (Task, error) {
+	var k Kind
+	switch t := obj.(type) {
+	case *extensions.Ingress:
+		k = Ingress
+	case *api_v1.Endpoints:
+		k = Endpoints
+	case *api_v1.ConfigMap:
+		k = ConfigMap
+	default:
+		return Task{}, fmt.Errorf("Unknow type: %v", t)
+	}
+
+	return Task{k, key}, nil
 }
 
 // compareLinks returns true if the 2 self links are equal.
@@ -200,4 +244,9 @@ func FindPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
 	}
 
 	return 0, fmt.Errorf("no suitable port for manifest: %s", pod.UID)
+}
+
+// StoreToSecretLister makes a Store that lists Secrets
+type StoreToSecretLister struct {
+	cache.Store
 }

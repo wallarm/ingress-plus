@@ -31,3 +31,6 @@ nginx-plus-ingress
 *.crt
 *.key
 
+# Visual Studio Code settings
+.vscode
+

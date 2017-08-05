@@ -56,9 +56,7 @@ type LoadBalancerController struct {
 	svcLister            cache.Store
 	endpLister           StoreToEndpointLister
 	cfgmLister           StoreToConfigMapLister
-	ingQueue             *taskQueue
-	endpQueue            *taskQueue
-	cfgmQueue            *taskQueue
+	syncQueue            *taskQueue
 	stopCh               chan struct{}
 	cnf                  *nginx.Configurator
 	watchNginxConfigMaps bool
@@ -85,8 +83,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 	lbc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
 		api_v1.EventSource{Component: "nginx-ingress-controller"})
 
-	lbc.ingQueue = NewTaskQueue(lbc.syncIng)
-	lbc.endpQueue = NewTaskQueue(lbc.syncEndp)
+	lbc.syncQueue = NewTaskQueue(lbc.sync)
 
 	ingHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -96,7 +93,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 				return
 			}
 			glog.V(3).Infof("Adding Ingress: %v", addIng.Name)
-			lbc.ingQueue.enqueue(obj)
+			lbc.syncQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remIng, isIng := obj.(*extensions.Ingress)
@@ -116,7 +113,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 				return
 			}
 			glog.V(3).Infof("Removing Ingress: %v", remIng.Name)
-			lbc.ingQueue.enqueue(obj)
+			lbc.syncQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			curIng := cur.(*extensions.Ingress)
@@ -125,7 +122,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 			}
 			if !reflect.DeepEqual(old, cur) {
 				glog.V(3).Infof("Ingress %v changed, syncing", curIng.Name)
-				lbc.ingQueue.enqueue(cur)
+				lbc.syncQueue.enqueue(cur)
 			}
 		},
 	}
@@ -172,7 +169,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		AddFunc: func(obj interface{}) {
 			addEndp := obj.(*api_v1.Endpoints)
 			glog.V(3).Infof("Adding endpoints: %v", addEndp.Name)
-			lbc.endpQueue.enqueue(obj)
+			lbc.syncQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remEndp, isEndp := obj.(*api_v1.Endpoints)
@@ -189,13 +186,13 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 				}
 			}
 			glog.V(3).Infof("Removing endpoints: %v", remEndp.Name)
-			lbc.endpQueue.enqueue(obj)
+			lbc.syncQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
 				glog.V(3).Infof("Endpoints %v changed, syncing",
 					cur.(*api_v1.Endpoints).Name)
-				lbc.endpQueue.enqueue(cur)
+				lbc.syncQueue.enqueue(cur)
 			}
 		},
 	}
@@ -209,14 +206,13 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 			glog.Warning(err)
 		} else {
 			lbc.watchNginxConfigMaps = true
-			lbc.cfgmQueue = NewTaskQueue(lbc.syncCfgm)
 
 			cfgmHandlers := cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
 					cfgm := obj.(*api_v1.ConfigMap)
 					if cfgm.Name == nginxConfigMapsName {
 						glog.V(3).Infof("Adding ConfigMap: %v", cfgm.Name)
-						lbc.cfgmQueue.enqueue(obj)
+						lbc.syncQueue.enqueue(obj)
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
@@ -235,7 +231,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 					}
 					if cfgm.Name == nginxConfigMapsName {
 						glog.V(3).Infof("Removing ConfigMap: %v", cfgm.Name)
-						lbc.cfgmQueue.enqueue(obj)
+						lbc.syncQueue.enqueue(obj)
 					}
 				},
 				UpdateFunc: func(old, cur interface{}) {
@@ -244,7 +240,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 						if cfgm.Name == nginxConfigMapsName {
 							glog.V(3).Infof("ConfigMap %v changed, syncing",
 								cur.(*api_v1.ConfigMap).Name)
-							lbc.cfgmQueue.enqueue(cur)
+							lbc.syncQueue.enqueue(cur)
 						}
 					}
 				},
@@ -263,11 +259,9 @@ func (lbc *LoadBalancerController) Run() {
 	go lbc.ingController.Run(lbc.stopCh)
 	go lbc.svcController.Run(lbc.stopCh)
 	go lbc.endpController.Run(lbc.stopCh)
-	go lbc.ingQueue.run(time.Second, lbc.stopCh)
-	go lbc.endpQueue.run(time.Second, lbc.stopCh)
+	go lbc.syncQueue.run(time.Second, lbc.stopCh)
 	if lbc.watchNginxConfigMaps {
 		go lbc.cfgmController.Run(lbc.stopCh)
-		go lbc.cfgmQueue.run(time.Second, lbc.stopCh)
 	}
 	<-lbc.stopCh
 }
@@ -276,19 +270,16 @@ func (lbc *LoadBalancerController) Run() {
 func (lbc *LoadBalancerController) Stop() {
 	close(lbc.stopCh)
 
-	lbc.ingQueue.shutdown()
-	if lbc.watchNginxConfigMaps {
-		lbc.cfgmQueue.shutdown()
-	}
-	lbc.endpQueue.shutdown()
+	lbc.syncQueue.shutdown()
 }
 
-func (lbc *LoadBalancerController) syncEndp(key string) {
+func (lbc *LoadBalancerController) syncEndp(task Task) {
+	key := task.Key
 	glog.V(3).Infof("Syncing endpoints %v", key)
 
 	obj, endpExists, err := lbc.endpLister.GetByKey(key)
 	if err != nil {
-		lbc.endpQueue.requeue(key, err)
+		lbc.syncQueue.requeue(task, err)
 		return
 	}
 
@@ -314,12 +305,13 @@ func (lbc *LoadBalancerController) syncEndp(key string) {
 	}
 }
 
-func (lbc *LoadBalancerController) syncCfgm(key string) {
+func (lbc *LoadBalancerController) syncCfgm(task Task) {
+	key := task.Key
 	glog.V(3).Infof("Syncing configmap %v", key)
 
 	obj, cfgmExists, err := lbc.cfgmLister.GetByKey(key)
 	if err != nil {
-		lbc.cfgmQueue.requeue(key, err)
+		lbc.syncQueue.requeue(task, err)
 		return
 	}
 	cfg := nginx.NewDefaultConfig()
@@ -547,12 +539,26 @@ func (lbc *LoadBalancerController) syncCfgm(key string) {
 	}
 }
 
-func (lbc *LoadBalancerController) syncIng(key string) {
-	glog.V(3).Infof("Syncing %v", key)
+func (lbc *LoadBalancerController) sync(task Task) {
+	glog.V(3).Infof("Syncing %v", task.Key)
 
+	switch task.Kind {
+	case Ingress:
+		lbc.syncIng(task)
+	case ConfigMap:
+		lbc.syncCfgm(task)
+		return
+	case Endpoints:
+		lbc.syncEndp(task)
+		return
+	}
+}
+
+func (lbc *LoadBalancerController) syncIng(task Task) {
+	key := task.Key
 	obj, ingExists, err := lbc.ingLister.Store.GetByKey(key)
 	if err != nil {
-		lbc.ingQueue.requeue(key, err)
+		lbc.syncQueue.requeue(task, err)
 		return
 	}
 
@@ -571,7 +577,7 @@ func (lbc *LoadBalancerController) syncIng(key string) {
 		ing := obj.(*extensions.Ingress)
 		ingEx, err := lbc.createIngress(ing)
 		if err != nil {
-			lbc.ingQueue.requeueAfter(key, err, 5*time.Second)
+			lbc.syncQueue.requeueAfter(task, err, 5*time.Second)
 			lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "Rejected", "%v was rejected: %v", key, err)
 			return
 		}
@@ -590,7 +596,7 @@ func (lbc *LoadBalancerController) enqueueIngressForService(svc *api_v1.Service)
 		if !isNginxIngress(&ing) {
 			continue
 		}
-		lbc.ingQueue.enqueue(&ing)
+		lbc.syncQueue.enqueue(&ing)
 	}
 }
 

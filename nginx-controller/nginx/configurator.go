@@ -3,7 +3,6 @@ package nginx
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/golang/glog"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
@@ -17,7 +16,6 @@ const emptyHost = ""
 type Configurator struct {
 	nginx    *NginxController
 	config   *Config
-	lock     sync.Mutex
 	nginxAPI *plus.NginxAPIController
 }
 
@@ -38,9 +36,6 @@ func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
 
 // AddOrUpdateIngress adds or updates NGINX configuration for an Ingress resource
 func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) error {
-	cnf.lock.Lock()
-	defer cnf.lock.Unlock()
-
 	cnf.addOrUpdateIngress(name, ingEx)
 
 	if err := cnf.nginx.Reload(); err != nil {
@@ -485,9 +480,6 @@ func upstreamMapToSlice(upstreams map[string]Upstream) []Upstream {
 
 // DeleteIngress deletes NGINX configuration for an Ingress resource
 func (cnf *Configurator) DeleteIngress(name string) error {
-	cnf.lock.Lock()
-	defer cnf.lock.Unlock()
-
 	cnf.nginx.DeleteIngress(name)
 	if err := cnf.nginx.Reload(); err != nil {
 		return fmt.Errorf("Error when removing ingress %v: %v", name, err)
@@ -497,9 +489,6 @@ func (cnf *Configurator) DeleteIngress(name string) error {
 
 // UpdateEndpoints updates endpoints in NGINX configuration for an Ingress resource
 func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) error {
-	cnf.lock.Lock()
-	defer cnf.lock.Unlock()
-
 	if cnf.isPlus() {
 		cnf.addOrUpdateIngress(name, ingEx)
 		cnf.updatePlusEndpoints(name, ingEx)
@@ -542,9 +531,6 @@ func (cnf *Configurator) updatePlusEndpoints(name string, ingEx *IngressEx) {
 
 // UpdateConfig updates NGINX Configuration parameters
 func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) error {
-	cnf.lock.Lock()
-	defer cnf.lock.Unlock()
-
 	cnf.config = config
 	mainCfg := &NginxMainConfig{
 		HTTPSnippets:              config.MainHTTPSnippets,
