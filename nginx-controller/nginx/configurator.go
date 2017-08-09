@@ -1,11 +1,13 @@
 package nginx
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -34,19 +36,20 @@ func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
 	return cnf.nginx.AddOrUpdateDHParam(content)
 }
 
-// AddOrUpdateIngress adds or updates NGINX configuration for an Ingress resource
-func (cnf *Configurator) AddOrUpdateIngress(name string, ingEx *IngressEx) error {
-	cnf.addOrUpdateIngress(name, ingEx)
+// AddOrUpdateIngress adds or updates NGINX configuration for the Ingress resource
+func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) error {
+	cnf.addOrUpdateIngress(ingEx)
 
 	if err := cnf.nginx.Reload(); err != nil {
-		return fmt.Errorf("Error when adding or updating ingress %v: %v", name, err)
+		return fmt.Errorf("Error when adding or updating ingress %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 	}
 	return nil
 }
 
-func (cnf *Configurator) addOrUpdateIngress(name string, ingEx *IngressEx) {
+func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
 	pems := cnf.updateCertificates(ingEx)
 	nginxCfg := cnf.generateNginxCfg(ingEx, pems)
+	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
 }
 
@@ -55,23 +58,8 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 
 	for _, tls := range ingEx.Ingress.Spec.TLS {
 		secretName := tls.SecretName
-		secret, exist := ingEx.Secrets[secretName]
-		if !exist {
-			continue
-		}
-		cert, ok := secret.Data[api_v1.TLSCertKey]
-		if !ok {
-			glog.Warningf("Secret %v has no cert", secretName)
-			continue
-		}
-		key, ok := secret.Data[api_v1.TLSPrivateKeyKey]
-		if !ok {
-			glog.Warningf("Secret %v has no private key", secretName)
-			continue
-		}
 
-		name := ingEx.Ingress.Namespace + "-" + secretName
-		pemFileName := cnf.nginx.AddOrUpdateCertAndKey(name, string(cert), string(key))
+		pemFileName := cnf.addOrUpdateTLSSecret(ingEx.Secrets[secretName])
 
 		for _, host := range tls.Hosts {
 			pems[host] = pemFileName
@@ -478,30 +466,77 @@ func upstreamMapToSlice(upstreams map[string]Upstream) []Upstream {
 	return result
 }
 
-// DeleteIngress deletes NGINX configuration for an Ingress resource
-func (cnf *Configurator) DeleteIngress(name string) error {
-	cnf.nginx.DeleteIngress(name)
+// AddOrUpdateTLSSecret creates or updates a file with the content of the TLS secret
+func (cnf *Configurator) AddOrUpdateTLSSecret(secret *api_v1.Secret, reload bool) error {
+	cnf.addOrUpdateTLSSecret(secret)
+
+	if !reload {
+		return nil
+	}
+
 	if err := cnf.nginx.Reload(); err != nil {
-		return fmt.Errorf("Error when removing ingress %v: %v", name, err)
+		return fmt.Errorf("Error when reloading NGINX when updating Secret: %v", err)
 	}
 	return nil
 }
 
-// UpdateEndpoints updates endpoints in NGINX configuration for an Ingress resource
-func (cnf *Configurator) UpdateEndpoints(name string, ingEx *IngressEx) error {
-	if cnf.isPlus() {
-		cnf.addOrUpdateIngress(name, ingEx)
-		cnf.updatePlusEndpoints(name, ingEx)
-	} else {
-		cnf.addOrUpdateIngress(name, ingEx)
+func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
+	name := objectMetaToFileName(&secret.ObjectMeta)
+	data := generateCertAndKeyFileContent(secret)
+	return cnf.nginx.AddOrUpdatePemFile(name, data)
+}
+
+func generateCertAndKeyFileContent(secret *api_v1.Secret) []byte {
+	var res bytes.Buffer
+
+	res.Write(secret.Data[api_v1.TLSCertKey])
+	res.WriteString("\n")
+	res.Write(secret.Data[api_v1.TLSPrivateKeyKey])
+
+	return res.Bytes()
+}
+
+// DeleteTLSSecret deletes the file associated with the TLS secret and the configuration files for the Ingress resources. NGINX is reloaded only when len(ings) > 0
+func (cnf *Configurator) DeleteTLSSecret(key string, ings []extensions.Ingress) error {
+	for _, ing := range ings {
+		cnf.nginx.DeleteIngress(objectMetaToFileName(&ing.ObjectMeta))
+	}
+
+	cnf.nginx.DeletePemFile(keyToFileName(key))
+
+	if len(ings) > 0 {
 		if err := cnf.nginx.Reload(); err != nil {
-			return fmt.Errorf("Error reloading NGINX when updating endpoints for %v: %v", name, err)
+			return fmt.Errorf("Error when reloading NGINX when deleting Secret %v: %v", key, err)
+		}
+	}
+
+	return nil
+}
+
+// DeleteIngress deletes NGINX configuration for the Ingress resource
+func (cnf *Configurator) DeleteIngress(key string) error {
+	cnf.nginx.DeleteIngress(keyToFileName(key))
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when removing ingress %v: %v", key, err)
+	}
+	return nil
+}
+
+// UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resource
+func (cnf *Configurator) UpdateEndpoints(ingEx *IngressEx) error {
+	cnf.addOrUpdateIngress(ingEx)
+
+	if cnf.isPlus() {
+		cnf.updatePlusEndpoints(ingEx)
+	} else {
+		if err := cnf.nginx.Reload(); err != nil {
+			return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 	}
 	return nil
 }
 
-func (cnf *Configurator) updatePlusEndpoints(name string, ingEx *IngressEx) {
+func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) {
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName+ingEx.Ingress.Spec.Backend.ServicePort.String()]
@@ -546,7 +581,7 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
 
 	for _, ingEx := range ingExes {
-		cnf.addOrUpdateIngress(ingEx.Ingress.Namespace+"-"+ingEx.Ingress.Name, ingEx)
+		cnf.addOrUpdateIngress(ingEx)
 	}
 
 	if err := cnf.nginx.Reload(); err != nil {
@@ -558,4 +593,12 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 
 func (cnf *Configurator) isPlus() bool {
 	return cnf.nginxAPI != nil
+}
+
+func keyToFileName(key string) string {
+	return strings.Replace(key, "/", "-", -1)
+}
+
+func objectMetaToFileName(meta *meta_v1.ObjectMeta) string {
+	return meta.Namespace + "-" + meta.Name
 }

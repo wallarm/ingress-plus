@@ -118,6 +118,8 @@ const (
 	Endpoints
 	// ConfigMap resource
 	ConfigMap
+	// Secret resource
+	Secret
 )
 
 // Task is an element of a taskQueue
@@ -136,6 +138,8 @@ func NewTask(key string, obj interface{}) (Task, error) {
 		k = Endpoints
 	case *api_v1.ConfigMap:
 		k = ConfigMap
+	case *api_v1.Secret:
+		k = Secret
 	default:
 		return Task{}, fmt.Errorf("Unknow type: %v", t)
 	}

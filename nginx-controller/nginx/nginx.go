@@ -169,10 +169,10 @@ func (nginx *NginxController) AddOrUpdateDHParam(dhparam string) (string, error)
 	return fileName, nil
 }
 
-// AddOrUpdateCertAndKey creates a .pem file wth the cert and the key with the
+// AddOrUpdatePemFile creates a .pem file wth the cert and the key with the
 // specified name
-func (nginx *NginxController) AddOrUpdateCertAndKey(name string, cert string, key string) string {
-	pemFileName := nginx.nginxCertsPath + "/" + name + ".pem"
+func (nginx *NginxController) AddOrUpdatePemFile(name string, content []byte) string {
+	pemFileName := nginx.getPemFileName(name)
 
 	if !nginx.local {
 		pem, err := ioutil.TempFile(nginx.nginxCertsPath, name)
@@ -180,17 +180,7 @@ func (nginx *NginxController) AddOrUpdateCertAndKey(name string, cert string, ke
 			glog.Fatalf("Couldn't create a temp file for the pem file %v: %v", name, err)
 		}
 
-		_, err = pem.WriteString(key)
-		if err != nil {
-			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
-		}
-
-		_, err = pem.WriteString("\n")
-		if err != nil {
-			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
-		}
-
-		_, err = pem.WriteString(cert)
+		_, err = pem.Write(content)
 		if err != nil {
 			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
 		}
@@ -209,8 +199,25 @@ func (nginx *NginxController) AddOrUpdateCertAndKey(name string, cert string, ke
 	return pemFileName
 }
 
+// DeletePemFile deletes the pem file
+func (nginx *NginxController) DeletePemFile(name string) {
+	pemFileName := nginx.getPemFileName(name)
+	glog.V(3).Infof("deleting %v", pemFileName)
+
+	if !nginx.local {
+		if err := os.Remove(pemFileName); err != nil {
+			glog.Warningf("Failed to delete %v: %v", pemFileName, err)
+		}
+	}
+
+}
+
 func (nginx *NginxController) getIngressNginxConfigFileName(name string) string {
 	return path.Join(nginx.nginxConfdPath, name+".conf")
+}
+
+func (nginx *NginxController) getPemFileName(name string) string {
+	return path.Join(nginx.nginxCertsPath, name+".pem")
 }
 
 func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
