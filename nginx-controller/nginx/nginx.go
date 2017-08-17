@@ -35,6 +35,7 @@ type Upstream struct {
 	Name            string
 	UpstreamServers []UpstreamServer
 	StickyCookie    string
+	LBMethod        string
 }
 
 // UpstreamServer describes a server in an NGINX upstream
