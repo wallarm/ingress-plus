@@ -83,7 +83,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace, spServices[ingEx.Ingress.Spec.Backend.ServiceName])
+		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace, spServices[ingEx.Ingress.Spec.Backend.ServiceName], ingCfg.LBMethod)
 		upstreams[name] = upstream
 	}
 
@@ -133,7 +133,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName])
+				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName], ingCfg.LBMethod)
 				upstreams[upsName] = upstream
 			}
 
@@ -199,6 +199,12 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	ingCfg := *cnf.config
+
+	//Override from annotation
+	if lbMethod, exists := ingEx.Ingress.Annotations["nginx.org/lb-method"]; exists {
+		ingCfg.LBMethod = lbMethod
+	}
+
 	if serverTokens, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/server-tokens", ingEx.Ingress); exists {
 		if err != nil {
 			if cnf.isPlus() {
@@ -421,7 +427,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 	return loc
 }
 
-func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string) Upstream {
+func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string, lbMethod string) Upstream {
 	var ups Upstream
 
 	if cnf.isPlus() {
@@ -441,7 +447,7 @@ func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *
 			ups.UpstreamServers = upsServers
 		}
 	}
-
+	ups.LBMethod = lbMethod
 	return ups
 }
 

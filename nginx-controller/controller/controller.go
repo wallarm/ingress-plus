@@ -377,6 +377,10 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 			}
 		}
 
+		if lbMethod, exists := cfgm.Data["lb-method"]; exists {
+			cfg.LBMethod = lbMethod
+		}
+
 		if proxyConnectTimeout, exists := cfgm.Data["proxy-connect-timeout"]; exists {
 			cfg.ProxyConnectTimeout = proxyConnectTimeout
 		}

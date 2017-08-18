@@ -34,6 +34,7 @@ The table below summarizes some of the options. More options (extensions) are av
 | N/A | `http-snippets` | Sets a custom snippet in http context. | N/A |
 | `nginx.org/location-snippets` | `location-snippets` | Sets a custom snippet in location context. | N/A |
 | `nginx.org/server-snippets` | `server-snippets` | Sets a custom snippet in server context. | N/A |
+| `nginx.org/lb-method` | `lb-method` | Sets the [load balancing method](https://www.nginx.com/resources/admin-guide/load-balancer/#method). The default `""` specifies the round-robin method. | `""` |
 
 ## Using ConfigMaps
 
