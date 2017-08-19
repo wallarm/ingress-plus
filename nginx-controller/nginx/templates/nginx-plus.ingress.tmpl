@@ -24,9 +24,7 @@ server {
 
 	server_tokens "{{$server.ServerTokens}}";
 
-	{{if $server.Name}}
 	server_name {{$server.Name}};
-	{{end}}
 
 	status_zone {{$server.StatusZone}};
 

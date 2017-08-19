@@ -789,9 +789,15 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 		}
 	}
 
+	validRules := 0
+
 	for _, rule := range ing.Spec.Rules {
 		if rule.IngressRuleValue.HTTP == nil {
 			continue
+		}
+
+		if rule.Host == "" {
+			return nil, fmt.Errorf("Ingress rule contains empty host")
 		}
 
 		for _, path := range rule.HTTP.Paths {
@@ -803,6 +809,12 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 				ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()] = endps
 			}
 		}
+
+		validRules++
+	}
+
+	if validRules == 0 {
+		return nil, fmt.Errorf("Ingress contains no valid rules")
 	}
 
 	return ingEx, nil
