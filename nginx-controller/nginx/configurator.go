@@ -97,10 +97,6 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		serverName := rule.Host
 
 		statuzZone := rule.Host
-		if rule.Host == emptyHost {
-			statuzZone = ingEx.Ingress.Namespace + "-" + ingEx.Ingress.Name
-			glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
-		}
 
 		server := Server{
 			Name:                  serverName,
@@ -150,45 +146,6 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], rewrites[ingEx.Ingress.Spec.Backend.ServiceName], sslServices[ingEx.Ingress.Spec.Backend.ServiceName])
 			locations = append(locations, loc)
 		}
-
-		server.Locations = locations
-		servers = append(servers, server)
-	}
-
-	if len(ingEx.Ingress.Spec.Rules) == 0 && ingEx.Ingress.Spec.Backend != nil {
-		serverName := emptyHost
-		statuzZone := ingEx.Ingress.Namespace + "-" + ingEx.Ingress.Name
-		glog.Warningf("Host field of ingress rule in %v/%v is empty", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
-		server := Server{
-			Name:                  serverName,
-			ServerTokens:          ingCfg.ServerTokens,
-			HTTP2:                 ingCfg.HTTP2,
-			RedirectToHTTPS:       ingCfg.RedirectToHTTPS,
-			ProxyProtocol:         ingCfg.ProxyProtocol,
-			HSTS:                  ingCfg.HSTS,
-			HSTSMaxAge:            ingCfg.HSTSMaxAge,
-			HSTSIncludeSubdomains: ingCfg.HSTSIncludeSubdomains,
-			StatusZone:            statuzZone,
-			RealIPHeader:          ingCfg.RealIPHeader,
-			SetRealIPFrom:         ingCfg.SetRealIPFrom,
-			RealIPRecursive:       ingCfg.RealIPRecursive,
-			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
-			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
-			ServerSnippets:        ingCfg.ServerSnippets,
-		}
-
-		if pemFile, ok := pems[emptyHost]; ok {
-			server.SSL = true
-			server.SSLCertificate = pemFile
-			server.SSLCertificateKey = pemFile
-		}
-
-		var locations []Location
-
-		upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-
-		loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], rewrites[ingEx.Ingress.Spec.Backend.ServiceName], sslServices[ingEx.Ingress.Spec.Backend.ServiceName])
-		locations = append(locations, loc)
 
 		server.Locations = locations
 		servers = append(servers, server)

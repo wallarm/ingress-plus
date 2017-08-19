@@ -20,9 +20,8 @@ server {
 
 	server_tokens {{$server.ServerTokens}};
 
-	{{if $server.Name}}
 	server_name {{$server.Name}};
-	{{end}}
+	
 	{{range $proxyHideHeader := $server.ProxyHideHeaders}}
 	proxy_hide_header {{$proxyHideHeader}};{{end}}
 	{{range $proxyPassHeader := $server.ProxyPassHeaders}}
