@@ -34,4 +34,7 @@ RUN mkdir -p /var/lib/nginx/state && chown -R nginx:nginx /var/lib/nginx
 COPY nginx-ingress nginx/templates/nginx-plus.ingress.tmpl nginx/templates/nginx-plus.tmpl /
 RUN rm /etc/nginx/conf.d/*
 
+RUN mkdir -p /etc/nginx/ssl
+ADD default.pem /etc/nginx/ssl
+
 ENTRYPOINT ["/nginx-ingress"]

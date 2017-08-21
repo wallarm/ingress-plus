@@ -64,17 +64,19 @@ type LoadBalancerController struct {
 	watchNginxConfigMaps bool
 	nginxPlus            bool
 	recorder             record.EventRecorder
+	defaultServerSecret  string
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, nginxPlus bool) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
-		client:    kubeClient,
-		stopCh:    make(chan struct{}),
-		cnf:       cnf,
-		nginxPlus: nginxPlus,
+		client:              kubeClient,
+		stopCh:              make(chan struct{}),
+		cnf:                 cnf,
+		defaultServerSecret: defaultServerSecret,
+		nginxPlus:           nginxPlus,
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -203,6 +205,14 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		&api_v1.Endpoints{}, resyncPeriod, endpHandlers)
 
 	secrHandlers := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			secr := obj.(*api_v1.Secret)
+			nsname := secr.Namespace + "/" + secr.Name
+			if nsname == lbc.defaultServerSecret {
+				glog.V(3).Infof("Adding default server Secret: %v", secr.Name)
+				lbc.syncQueue.enqueue(obj)
+			}
+		},
 		DeleteFunc: func(obj interface{}) {
 			remSecr, isSecr := obj.(*api_v1.Secret)
 			if !isSecr {
@@ -244,7 +254,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		&api_v1.Secret{}, resyncPeriod, secrHandlers)
 
 	if nginxConfigMaps != "" {
-		nginxConfigMapsNS, nginxConfigMapsName, err := parseNamespaceName(nginxConfigMaps)
+		nginxConfigMapsNS, nginxConfigMapsName, err := ParseNamespaceName(nginxConfigMaps)
 		if err != nil {
 			glog.Warning(err)
 		} else {
@@ -644,7 +654,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 		return
 	}
 
-	_, name, err := parseNamespaceName(key)
+	_, name, err := ParseNamespaceName(key)
 	if err != nil {
 		glog.Warningf("Secret key %v is invalid: %v", key, err)
 		return
@@ -669,10 +679,31 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 			lbc.syncQueue.enqueue(&ing)
 			lbc.recorder.Eventf(&ing, api_v1.EventTypeWarning, "Rejected", "%v/%v was rejected due to deleted Secret %v: %v", ing.Namespace, ing.Name, key)
 		}
+
+		if key == lbc.defaultServerSecret {
+			glog.Warningf("The default server Secret %v was removed. Retaining the Secret.")
+		}
 	} else {
 		glog.V(2).Infof("Updating Secret: %v\n", key)
 
 		secret := obj.(*api_v1.Secret)
+
+		if key == lbc.defaultServerSecret {
+			err := ValidateTLSSecret(secret)
+			if err != nil {
+				glog.Errorf("Couldn't validate the default server Secret %v: %v", key, err)
+				lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "Rejected", "the default server Secret %v was rejected, using the previous version: %v", key, err)
+			} else {
+				err := lbc.cnf.AddOrUpdateDefaultServerTLSSecret(secret)
+				if err != nil {
+					glog.Errorf("Error when updating the default server Secret %v: %v", key, err)
+					lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "UpdatedWithError", "the default server Secret %v was updated, but not applied: %v", key, err)
+
+				} else {
+					lbc.recorder.Eventf(secret, api_v1.EventTypeNormal, "Updated", "the default server Secret %v was updated", key)
+				}
+			}
+		}
 
 		if len(ings) > 0 {
 			err := ValidateTLSSecret(secret)
@@ -919,10 +950,10 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensio
 	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 }
 
-func parseNamespaceName(value string) (ns string, name string, err error) {
+func ParseNamespaceName(value string) (ns string, name string, err error) {
 	res := strings.Split(value, "/")
 	if len(res) != 2 {
-		return "", "", fmt.Errorf("%v must follow the format <namespace>/<name>", value)
+		return "", "", fmt.Errorf("%q must follow the format <namespace>/<name>", value)
 	}
 	return res[0], res[1], nil
 }

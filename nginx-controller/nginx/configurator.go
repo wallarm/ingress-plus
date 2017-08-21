@@ -13,6 +13,7 @@ import (
 )
 
 const emptyHost = ""
+const DefaultServerPemName = "default"
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
@@ -445,11 +446,22 @@ func (cnf *Configurator) AddOrUpdateTLSSecret(secret *api_v1.Secret, reload bool
 
 func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
 	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := generateCertAndKeyFileContent(secret)
+	data := GenerateCertAndKeyFileContent(secret)
 	return cnf.nginx.AddOrUpdatePemFile(name, data)
 }
 
-func generateCertAndKeyFileContent(secret *api_v1.Secret) []byte {
+func (cnf *Configurator) AddOrUpdateDefaultServerTLSSecret(secret *api_v1.Secret) error {
+	data := GenerateCertAndKeyFileContent(secret)
+	cnf.nginx.AddOrUpdatePemFile(DefaultServerPemName, data)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when reloading NGINX when updating the default server Secret: %v", err)
+	}
+	return nil
+}
+
+// GenerateCertAndKeyFileContent generates a pem file content from the secret
+func GenerateCertAndKeyFileContent(secret *api_v1.Secret) []byte {
 	var res bytes.Buffer
 
 	res.Write(secret.Data[api_v1.TLSCertKey])
@@ -539,6 +551,9 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 		SSLCiphers:                config.MainServerSSLCiphers,
 		SSLDHParam:                config.MainServerSSLDHParam,
 		SSLPreferServerCiphers:    config.MainServerSSLPreferServerCiphers,
+		HTTP2:         config.HTTP2,
+		ServerTokens:  config.ServerTokens,
+		ProxyProtocol: config.ProxyProtocol,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

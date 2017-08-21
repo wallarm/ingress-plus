@@ -25,7 +25,10 @@ else
 	go test ./...
 endif
 
-container: test nginx-ingress
+certificate-and-key: 
+	./generate_default_cert_and_key.sh
+
+container: test nginx-ingress certificate-and-key
 	docker build -f $(DOCKERFILE) -t $(PREFIX):$(TAG) .
 
 push: container

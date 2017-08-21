@@ -12,6 +12,7 @@ import (
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/controller"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx"
 	"github.com/nginxinc/kubernetes-ingress/nginx-controller/nginx/plus"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/rest"
@@ -43,6 +44,11 @@ var (
 
 	nginxPlus = flag.Bool("nginx-plus", false,
 		`Enables support for NGINX Plus.`)
+
+	defaultServerSecret = flag.String("default-server-tls-secret", "",
+		`Specifies a secret with a TLS certificate and key for SSL termination of
+		the default server. The value must follow the following format: <namespace>/<name>.
+		If not specified, the key and the cert from /etc/nginx/default.pem is used.`)
 )
 
 func main() {
@@ -84,6 +90,25 @@ func main() {
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 	}
 	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus, nginxConfTemplatePath, nginxIngressTemplatePath)
+
+	if *defaultServerSecret != "" {
+		ns, name, err := controller.ParseNamespaceName(*defaultServerSecret)
+		if err != nil {
+			glog.Fatalf("Error parsing the default-server-tls-secret argument: %v", err)
+		}
+		secret, err := kubeClient.CoreV1().Secrets(ns).Get(name, meta_v1.GetOptions{})
+		if err != nil {
+			glog.Fatalf("Error when getting %v: %v", *defaultServerSecret, err)
+		}
+		err = controller.ValidateTLSSecret(secret)
+		if err != nil {
+			glog.Fatalf("%v is invalid: %v", *defaultServerSecret, err)
+		}
+
+		bytes := nginx.GenerateCertAndKeyFileContent(secret)
+		ngxc.AddOrUpdatePemFile(nginx.DefaultServerPemName, bytes)
+	}
+
 	nginxDone := make(chan error, 1)
 	ngxc.Start(nginxDone)
 
@@ -98,7 +123,7 @@ func main() {
 	}
 	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *nginxPlus)
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()
 
