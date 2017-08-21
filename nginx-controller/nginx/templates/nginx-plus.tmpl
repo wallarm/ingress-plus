@@ -51,18 +51,30 @@ http {
     {{if .SSLPreferServerCiphers}}ssl_prefer_server_ciphers on;{{end}}
     {{if .SSLDHParam}}ssl_dhparam {{.SSLDHParam}};{{end}}
 
-    {{if .HealthStatus}}
+ 
     server {
-        listen 80 default_server;
-        server_name _;
+        listen 80 default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
+        listen 443 ssl default_server{{if .HTTP2}} http2{{end}}{{if .ProxyProtocol}} proxy_protocol{{end}};
 
+        ssl_certificate /etc/nginx/ssl/default.pem;
+        ssl_certificate_key /etc/nginx/ssl/default.pem;
+
+        server_name _;
+        server_tokens "{{.ServerTokens}}";
+        access_log off;
+
+        {{if .HealthStatus}}
         location /nginx-health {
-            access_log off;
             default_type text/plain;
             return 200 "healthy\n";
         }
+        {{end}}
+
+        location / {
+           return 404;
+        }
     }
-    {{end}}
+  
 
     # status and on-the-fly reconfiguration APIs
     server {

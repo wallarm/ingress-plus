@@ -98,6 +98,9 @@ type NginxMainConfig struct {
 	SSLPreferServerCiphers bool
 	SSLCiphers             string
 	SSLDHParam             string
+	HTTP2                  bool
+	ServerTokens           string
+	ProxyProtocol          bool
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -121,11 +124,10 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool, ngi
 		nginxIngressTempatePath: nginxIngressTemplatePath,
 	}
 
-	if !local {
-		createDir(ngxc.nginxCertsPath)
+	cfg := &NginxMainConfig{
+		ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize,
+		ServerTokens:           NewDefaultConfig().ServerTokens,
 	}
-
-	cfg := &NginxMainConfig{ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize}
 	ngxc.UpdateMainConfigFile(cfg)
 
 	return &ngxc, nil

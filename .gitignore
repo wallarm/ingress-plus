@@ -34,3 +34,6 @@ nginx-plus-ingress
 # Visual Studio Code settings
 .vscode
 
+# Default certificate and key
+default.pem
+
