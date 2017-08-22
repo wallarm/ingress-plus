@@ -41,6 +41,9 @@ type Config struct {
 	JWTKey      string
 	JWTToken    string
 	JWTLoginURL string
+
+	Ports    []int
+	SSLPorts []int
 }
 
 // NewDefaultConfig creates a Config with default values
@@ -53,5 +56,7 @@ func NewDefaultConfig() *Config {
 		MainServerNamesHashMaxSize: "512",
 		ProxyBuffering:             true,
 		HSTSMaxAge:                 2592000,
+		Ports:                      []int{80},
+		SSLPorts:                   []int{443},
 	}
 }
