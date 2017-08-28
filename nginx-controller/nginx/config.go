@@ -36,6 +36,11 @@ type Config struct {
 	MainServerSSLPreferServerCiphers bool
 	MainServerSSLCiphers             string
 	MainServerSSLDHParam             string
+
+	JWTRealm    string
+	JWTKey      string
+	JWTToken    string
+	JWTLoginURL string
 }
 
 // NewDefaultConfig creates a Config with default values

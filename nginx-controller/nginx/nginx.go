@@ -14,10 +14,14 @@ import (
 
 const dhparamFilename = "dhparam.pem"
 
+// TLSSecretFileMode defines the default filemode for files with TLS Secrets
+const TLSSecretFileMode = 0600
+const jwkSecretFileMode = 0644
+
 // NginxController Updates NGINX configuration, starts and reloads NGINX
 type NginxController struct {
 	nginxConfdPath          string
-	nginxCertsPath          string
+	nginxSecretsPath        string
 	local                   bool
 	healthStatus            bool
 	nginxConfTemplatePath   string
@@ -67,6 +71,11 @@ type Server struct {
 	RealIPHeader    string
 	SetRealIPFrom   []string
 	RealIPRecursive bool
+
+	JWTKey      string
+	JWTRealm    string
+	JWTToken    string
+	JWTLoginURL string
 }
 
 // Location describes an NGINX location
@@ -117,7 +126,7 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 func NewNginxController(nginxConfPath string, local bool, healthStatus bool, nginxConfTemplatePath string, nginxIngressTemplatePath string) (*NginxController, error) {
 	ngxc := NginxController{
 		nginxConfdPath:          path.Join(nginxConfPath, "conf.d"),
-		nginxCertsPath:          path.Join(nginxConfPath, "ssl"),
+		nginxSecretsPath:        path.Join(nginxConfPath, "secrets"),
 		local:                   local,
 		healthStatus:            healthStatus,
 		nginxConfTemplatePath:   nginxConfTemplatePath,
@@ -156,7 +165,7 @@ func (nginx *NginxController) AddOrUpdateIngress(name string, config IngressNgin
 
 // AddOrUpdateDHParam creates the servers dhparam.pem file
 func (nginx *NginxController) AddOrUpdateDHParam(dhparam string) (string, error) {
-	fileName := nginx.nginxCertsPath + "/" + dhparamFilename
+	fileName := nginx.nginxSecretsPath + "/" + dhparamFilename
 	if !nginx.local {
 		pem, err := os.Create(fileName)
 		if err != nil {
@@ -172,44 +181,48 @@ func (nginx *NginxController) AddOrUpdateDHParam(dhparam string) (string, error)
 	return fileName, nil
 }
 
-// AddOrUpdatePemFile creates a .pem file wth the cert and the key with the
-// specified name
-func (nginx *NginxController) AddOrUpdatePemFile(name string, content []byte) string {
-	pemFileName := nginx.getPemFileName(name)
+// AddOrUpdateSecretFile creates a file with the specified name, content and mode.
+func (nginx *NginxController) AddOrUpdateSecretFile(name string, content []byte, mode os.FileMode) string {
+	filename := nginx.getSecretFileName(name)
 
 	if !nginx.local {
-		pem, err := ioutil.TempFile(nginx.nginxCertsPath, name)
+		file, err := ioutil.TempFile(nginx.nginxSecretsPath, name)
 		if err != nil {
-			glog.Fatalf("Couldn't create a temp file for the pem file %v: %v", name, err)
+			glog.Fatalf("Couldn't create a temp file for the secret file %v: %v", name, err)
 		}
 
-		_, err = pem.Write(content)
+		err = file.Chmod(mode)
 		if err != nil {
-			glog.Fatalf("Couldn't write to the temp pem file %v: %v", pem.Name(), err)
+			glog.Fatalf("Couldn't change the mode of the temp secret file %v: %v", file.Name(), err)
 		}
 
-		err = pem.Close()
+		_, err = file.Write(content)
 		if err != nil {
-			glog.Fatalf("Couldn't close the temp pem file %v: %v", pem.Name(), err)
+			glog.Fatalf("Couldn't write to the temp secret file %v: %v", file.Name(), err)
 		}
 
-		err = os.Rename(pem.Name(), pemFileName)
+		err = file.Close()
 		if err != nil {
-			glog.Fatalf("Fail to rename the temp pem file %v to %v: %v", pem.Name(), pemFileName, err)
+			glog.Fatalf("Couldn't close the temp secret file %v: %v", file.Name(), err)
+		}
+
+		err = os.Rename(file.Name(), filename)
+		if err != nil {
+			glog.Fatalf("Fail to rename the temp secret file %v to %v: %v", file.Name(), filename, err)
 		}
 	}
 
-	return pemFileName
+	return filename
 }
 
-// DeletePemFile deletes the pem file
-func (nginx *NginxController) DeletePemFile(name string) {
-	pemFileName := nginx.getPemFileName(name)
-	glog.V(3).Infof("deleting %v", pemFileName)
+// DeleteSecretFile the file with a Secret
+func (nginx *NginxController) DeleteSecretFile(name string) {
+	filename := nginx.getSecretFileName(name)
+	glog.V(3).Infof("deleting %v", filename)
 
 	if !nginx.local {
-		if err := os.Remove(pemFileName); err != nil {
-			glog.Warningf("Failed to delete %v: %v", pemFileName, err)
+		if err := os.Remove(filename); err != nil {
+			glog.Warningf("Failed to delete %v: %v", filename, err)
 		}
 	}
 
@@ -219,8 +232,8 @@ func (nginx *NginxController) getIngressNginxConfigFileName(name string) string 
 	return path.Join(nginx.nginxConfdPath, name+".conf")
 }
 
-func (nginx *NginxController) getPemFileName(name string) string {
-	return path.Join(nginx.nginxCertsPath, name+".pem")
+func (nginx *NginxController) getSecretFileName(name string) string {
+	return path.Join(nginx.nginxSecretsPath, name)
 }
 
 func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {

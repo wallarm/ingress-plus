@@ -227,7 +227,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 					return
 				}
 			}
-			if err := ValidateTLSSecret(remSecr); err != nil {
+			if err := lbc.ValidateSecret(remSecr); err != nil {
 				return
 			}
 
@@ -235,8 +235,8 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 			lbc.syncQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			errOld := ValidateTLSSecret(old.(*api_v1.Secret))
-			errCur := ValidateTLSSecret(cur.(*api_v1.Secret))
+			errOld := lbc.ValidateSecret(old.(*api_v1.Secret))
+			errCur := lbc.ValidateSecret(cur.(*api_v1.Secret))
 			if errOld != nil && errCur != nil {
 				return
 			}
@@ -671,7 +671,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 	if !secrExists {
 		glog.V(2).Infof("Deleting Secret: %v\n", key)
 
-		if err := lbc.cnf.DeleteTLSSecret(key, ings); err != nil {
+		if err := lbc.cnf.DeleteSecret(key, ings); err != nil {
 			glog.Errorf("Error when deleting Secret: %v: %v", key, err)
 		}
 
@@ -689,7 +689,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 		secret := obj.(*api_v1.Secret)
 
 		if key == lbc.defaultServerSecret {
-			err := ValidateTLSSecret(secret)
+			err := nginx.ValidateTLSSecret(secret)
 			if err != nil {
 				glog.Errorf("Couldn't validate the default server Secret %v: %v", key, err)
 				lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "Rejected", "the default server Secret %v was rejected, using the previous version: %v", key, err)
@@ -706,10 +706,10 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 		}
 
 		if len(ings) > 0 {
-			err := ValidateTLSSecret(secret)
+			err := lbc.ValidateSecret(secret)
 			if err != nil {
 				glog.Errorf("Couldn't validate secret %v: %v", key, err)
-				if err := lbc.cnf.DeleteTLSSecret(key, ings); err != nil {
+				if err := lbc.cnf.DeleteSecret(key, ings); err != nil {
 					glog.Errorf("Error when deleting Secret: %v: %v", key, err)
 				}
 				for _, ing := range ings {
@@ -720,7 +720,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 				return
 			}
 
-			if err := lbc.cnf.AddOrUpdateTLSSecret(secret, true); err != nil {
+			if err := lbc.cnf.AddOrUpdateSecret(secret); err != nil {
 				glog.Errorf("Error when updating Secret %v: %v", key, err)
 				lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "UpdatedWithError", "%v was updated, but not applied: %v", key, err)
 				for _, ing := range ings {
@@ -742,6 +742,8 @@ func (lbc *LoadBalancerController) findIngressesForSecret(secret string) ([]exte
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get the list of Ingress resources: %v", err)
 	}
+
+items:
 	for _, ing := range ings.Items {
 		if !isNginxIngress(&ing) {
 			continue
@@ -749,6 +751,14 @@ func (lbc *LoadBalancerController) findIngressesForSecret(secret string) ([]exte
 		for _, tls := range ing.Spec.TLS {
 			if tls.SecretName == secret {
 				res = append(res, ing)
+				continue items
+			}
+		}
+		if lbc.nginxPlus {
+			if jwtKey, exists := ing.Annotations[nginx.JWTKeyAnnotation]; exists {
+				if jwtKey == secret {
+					res = append(res, ing)
+				}
 			}
 		}
 	}
@@ -795,18 +805,36 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 		Ingress: ing,
 	}
 
-	ingEx.Secrets = make(map[string]*api_v1.Secret)
+	ingEx.TLSSecrets = make(map[string]*api_v1.Secret)
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
 		secret, err := lbc.client.Core().Secrets(ing.Namespace).Get(secretName, meta_v1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
-		err = ValidateTLSSecret(secret)
+		err = nginx.ValidateTLSSecret(secret)
 		if err != nil {
 			return nil, fmt.Errorf("Error validating secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
-		ingEx.Secrets[secretName] = secret
+		ingEx.TLSSecrets[secretName] = secret
+	}
+
+	if lbc.nginxPlus {
+		if jwtKey, exists := ingEx.Ingress.Annotations[nginx.JWTKeyAnnotation]; exists {
+			secretName := jwtKey
+
+			secret, err := lbc.client.Core().Secrets(ing.Namespace).Get(secretName, meta_v1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
+			}
+
+			err = nginx.ValidateJWKSecret(secret)
+			if err != nil {
+				return nil, fmt.Errorf("Error validating secret %v for Ingress %v: %v", secretName, ing.Name, err)
+			}
+
+			ingEx.JWTKey = secret
+		}
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
@@ -950,6 +978,8 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensio
 	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 }
 
+// ParseNamespaceName parses the string in the <namespace>/<name> format and returns the name and the namespace.
+// It returns an error in case the string does not follow the <namespace>/<name> format.
 func ParseNamespaceName(value string) (ns string, name string, err error) {
 	res := strings.Split(value, "/")
 	if len(res) != 2 {
@@ -964,4 +994,21 @@ func isNginxIngress(ing *extensions.Ingress) bool {
 	}
 
 	return true
+}
+
+// ValidateSecret validates that the secret follows the TLS Secret format.
+// For NGINX Plus, it also checks if the secret follows the JWK Secret format.
+func (lbc *LoadBalancerController) ValidateSecret(secret *api_v1.Secret) error {
+	err1 := nginx.ValidateTLSSecret(secret)
+	if !lbc.nginxPlus {
+		return err1
+	}
+
+	err2 := nginx.ValidateJWKSecret(secret)
+
+	if err1 == nil || err2 == nil {
+		return nil
+	}
+
+	return fmt.Errorf("Secret is not a TLS or JWK secret")
 }

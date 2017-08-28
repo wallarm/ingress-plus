@@ -9,7 +9,7 @@ COPY nginx-ingress nginx/templates/nginx.ingress.tmpl nginx/templates/nginx.tmpl
 
 RUN rm /etc/nginx/conf.d/*
 
-RUN mkdir -p /etc/nginx/ssl
-ADD default.pem /etc/nginx/ssl
+RUN mkdir -p /etc/nginx/secrets
+ADD default.pem /etc/nginx/secrets/default
 
 ENTRYPOINT ["/nginx-ingress"]

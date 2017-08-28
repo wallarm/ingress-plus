@@ -48,7 +48,7 @@ var (
 	defaultServerSecret = flag.String("default-server-tls-secret", "",
 		`Specifies a secret with a TLS certificate and key for SSL termination of
 		the default server. The value must follow the following format: <namespace>/<name>.
-		If not specified, the key and the cert from /etc/nginx/default.pem is used.`)
+		If not specified, the key and the cert from /etc/nginx/default is used.`)
 )
 
 func main() {
@@ -100,13 +100,13 @@ func main() {
 		if err != nil {
 			glog.Fatalf("Error when getting %v: %v", *defaultServerSecret, err)
 		}
-		err = controller.ValidateTLSSecret(secret)
+		err = nginx.ValidateTLSSecret(secret)
 		if err != nil {
 			glog.Fatalf("%v is invalid: %v", *defaultServerSecret, err)
 		}
 
 		bytes := nginx.GenerateCertAndKeyFileContent(secret)
-		ngxc.AddOrUpdatePemFile(nginx.DefaultServerPemName, bytes)
+		ngxc.AddOrUpdateSecretFile(nginx.DefaultServerSecretName, bytes, nginx.TLSSecretFileMode)
 	}
 
 	nginxDone := make(chan error, 1)

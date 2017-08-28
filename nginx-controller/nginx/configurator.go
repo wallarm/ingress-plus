@@ -3,6 +3,7 @@ package nginx
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/golang/glog"
@@ -13,7 +14,15 @@ import (
 )
 
 const emptyHost = ""
-const DefaultServerPemName = "default"
+
+// DefaultServerSecretName is the filename of the Secret with a TLS cert and a key for the default server
+const DefaultServerSecretName = "default"
+
+// JWTKey is the key of the data field of a Secret where the JWK must be stored.
+const JWTKey = "jwk"
+
+// JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
+const JWTKeyAnnotation = "nginx.com/jwt-key"
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
@@ -33,6 +42,7 @@ func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *plus.Ngin
 	return &cnf
 }
 
+// AddOrUpdateDHParam creates a dhparam file with the content of the string.
 func (cnf *Configurator) AddOrUpdateDHParam(content string) (string, error) {
 	return cnf.nginx.AddOrUpdateDHParam(content)
 }
@@ -48,19 +58,19 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) error {
 }
 
 func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
-	pems := cnf.updateCertificates(ingEx)
-	nginxCfg := cnf.generateNginxCfg(ingEx, pems)
+	pems, jwtKeyFileName := cnf.updateSecrets(ingEx)
+	nginxCfg := cnf.generateNginxCfg(ingEx, pems, jwtKeyFileName)
 	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
 }
 
-func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string {
+func (cnf *Configurator) updateSecrets(ingEx *IngressEx) (map[string]string, string) {
 	pems := make(map[string]string)
 
 	for _, tls := range ingEx.Ingress.Spec.TLS {
 		secretName := tls.SecretName
 
-		pemFileName := cnf.addOrUpdateTLSSecret(ingEx.Secrets[secretName])
+		pemFileName := cnf.addOrUpdateSecret(ingEx.TLSSecrets[secretName])
 
 		for _, host := range tls.Hosts {
 			pems[host] = pemFileName
@@ -70,9 +80,16 @@ func (cnf *Configurator) updateCertificates(ingEx *IngressEx) map[string]string 
 		}
 	}
 
-	return pems
+	jwtKeyFileName := ""
+
+	if cnf.isPlus() && ingEx.JWTKey != nil {
+		jwtKeyFileName = cnf.addOrUpdateSecret(ingEx.JWTKey)
+	}
+
+	return pems, jwtKeyFileName
 }
-func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]string) IngressNginxConfig {
+
+func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]string, jwtKeyFileName string) IngressNginxConfig {
 	ingCfg := cnf.createConfig(ingEx)
 
 	upstreams := make(map[string]Upstream)
@@ -121,6 +138,13 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			server.SSL = true
 			server.SSLCertificate = pemFile
 			server.SSLCertificateKey = pemFile
+		}
+
+		if jwtKeyFileName != "" {
+			server.JWTKey = jwtKeyFileName
+			server.JWTRealm = ingCfg.JWTRealm
+			server.JWTToken = ingCfg.JWTToken
+			server.JWTLoginURL = ingCfg.JWTLoginURL
 		}
 
 		var locations []Location
@@ -271,6 +295,22 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 	if proxyMaxTempFileSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-max-temp-file-size"]; exists {
 		ingCfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
 	}
+
+	if cnf.isPlus() {
+		if jwtRealm, exists := ingEx.Ingress.Annotations["nginx.com/jwt-realm"]; exists {
+			ingCfg.JWTRealm = jwtRealm
+		}
+		if jwtKey, exists := ingEx.Ingress.Annotations[JWTKeyAnnotation]; exists {
+			ingCfg.JWTKey = fmt.Sprintf("%v/%v", ingEx.Ingress.Namespace, jwtKey)
+		}
+		if jwtToken, exists := ingEx.Ingress.Annotations["nginx.com/jwt-token"]; exists {
+			ingCfg.JWTToken = jwtToken
+		}
+		if jwtLoginURL, exists := ingEx.Ingress.Annotations["nginx.com/jwt-login-url"]; exists {
+			ingCfg.JWTLoginURL = jwtLoginURL
+		}
+	}
+
 	return ingCfg
 }
 
@@ -306,17 +346,17 @@ func parseRewrites(service string) (serviceName string, rewrite string, err erro
 	parts := strings.SplitN(service, " ", 2)
 
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("Invalid rewrite format: %s\n", service)
+		return "", "", fmt.Errorf("Invalid rewrite format: %s", service)
 	}
 
 	svcNameParts := strings.Split(parts[0], "=")
 	if len(svcNameParts) != 2 {
-		return "", "", fmt.Errorf("Invalid rewrite format: %s\n", svcNameParts)
+		return "", "", fmt.Errorf("Invalid rewrite format: %s", svcNameParts)
 	}
 
 	rwPathParts := strings.Split(parts[1], "=")
 	if len(rwPathParts) != 2 {
-		return "", "", fmt.Errorf("Invalid rewrite format: %s\n", rwPathParts)
+		return "", "", fmt.Errorf("Invalid rewrite format: %s", rwPathParts)
 	}
 
 	return svcNameParts[1], rwPathParts[1], nil
@@ -354,12 +394,12 @@ func parseStickyService(service string) (serviceName string, stickyCookie string
 	parts := strings.SplitN(service, " ", 2)
 
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", service)
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s", service)
 	}
 
 	svcNameParts := strings.Split(parts[0], "=")
 	if len(svcNameParts) != 2 {
-		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s\n", svcNameParts)
+		return "", "", fmt.Errorf("Invalid sticky-cookie service format: %s", svcNameParts)
 	}
 
 	return svcNameParts[1], parts[1], nil
@@ -430,11 +470,12 @@ func upstreamMapToSlice(upstreams map[string]Upstream) []Upstream {
 	return result
 }
 
-// AddOrUpdateTLSSecret creates or updates a file with the content of the TLS secret
-func (cnf *Configurator) AddOrUpdateTLSSecret(secret *api_v1.Secret, reload bool) error {
-	cnf.addOrUpdateTLSSecret(secret)
+// AddOrUpdateSecret creates or updates a file with the content of the secret
+func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret) error {
+	cnf.addOrUpdateSecret(secret)
 
-	if !reload {
+	kind, _ := GetSecretKind(secret)
+	if cnf.isPlus() && kind == JWK {
 		return nil
 	}
 
@@ -444,15 +485,27 @@ func (cnf *Configurator) AddOrUpdateTLSSecret(secret *api_v1.Secret, reload bool
 	return nil
 }
 
-func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
+func (cnf *Configurator) addOrUpdateSecret(secret *api_v1.Secret) string {
 	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := GenerateCertAndKeyFileContent(secret)
-	return cnf.nginx.AddOrUpdatePemFile(name, data)
+
+	var data []byte
+	var mode os.FileMode
+
+	kind, _ := GetSecretKind(secret)
+	if cnf.isPlus() && kind == JWK {
+		mode = jwkSecretFileMode
+		data = []byte(secret.Data[JWTKey])
+	} else {
+		mode = TLSSecretFileMode
+		data = GenerateCertAndKeyFileContent(secret)
+	}
+	return cnf.nginx.AddOrUpdateSecretFile(name, data, mode)
 }
 
+// AddOrUpdateDefaultServerTLSSecret creates or updates a file with a TLS cert and a key from the secret for the default server.
 func (cnf *Configurator) AddOrUpdateDefaultServerTLSSecret(secret *api_v1.Secret) error {
 	data := GenerateCertAndKeyFileContent(secret)
-	cnf.nginx.AddOrUpdatePemFile(DefaultServerPemName, data)
+	cnf.nginx.AddOrUpdateSecretFile(DefaultServerSecretName, data, TLSSecretFileMode)
 
 	if err := cnf.nginx.Reload(); err != nil {
 		return fmt.Errorf("Error when reloading NGINX when updating the default server Secret: %v", err)
@@ -471,13 +524,13 @@ func GenerateCertAndKeyFileContent(secret *api_v1.Secret) []byte {
 	return res.Bytes()
 }
 
-// DeleteTLSSecret deletes the file associated with the TLS secret and the configuration files for the Ingress resources. NGINX is reloaded only when len(ings) > 0
-func (cnf *Configurator) DeleteTLSSecret(key string, ings []extensions.Ingress) error {
+// DeleteSecret deletes the file associated with the secret and the configuration files for the Ingress resources. NGINX is reloaded only when len(ings) > 0
+func (cnf *Configurator) DeleteSecret(key string, ings []extensions.Ingress) error {
 	for _, ing := range ings {
 		cnf.nginx.DeleteIngress(objectMetaToFileName(&ing.ObjectMeta))
 	}
 
-	cnf.nginx.DeletePemFile(keyToFileName(key))
+	cnf.nginx.DeleteSecretFile(keyToFileName(key))
 
 	if len(ings) > 0 {
 		if err := cnf.nginx.Reload(); err != nil {
