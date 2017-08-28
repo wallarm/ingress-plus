@@ -46,6 +46,19 @@ server {
 	}
 	{{- end}}
 
+	{{ if $server.JWTKey}}
+	auth_jwt_key_file {{$server.JWTKey}};
+	auth_jwt "{{$server.JWTRealm}}"{{if $server.JWTToken}} token={{$server.JWTToken}}{{end}};
+	
+	{{- if $server.JWTLoginURL}}
+	error_page 401 @login_url;	
+	location @login_url {
+		internal;
+		return 302 {{$server.JWTLoginURL}};
+	}
+	{{- end}}
+	{{- end}}
+
 	{{- if $server.ServerSnippets}}
 	{{range $value := $server.ServerSnippets}}
 	{{$value}}{{end}}
