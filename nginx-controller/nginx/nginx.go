@@ -76,6 +76,9 @@ type Server struct {
 	JWTRealm    string
 	JWTToken    string
 	JWTLoginURL string
+
+	Ports    []int
+	SSLPorts []int
 }
 
 // Location describes an NGINX location

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
@@ -132,6 +133,8 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			ProxyHideHeaders:      ingCfg.ProxyHideHeaders,
 			ProxyPassHeaders:      ingCfg.ProxyPassHeaders,
 			ServerSnippets:        ingCfg.ServerSnippets,
+			Ports:                 ingCfg.Ports,
+			SSLPorts:              ingCfg.SSLPorts,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -311,6 +314,15 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 		}
 	}
 
+	ports, sslPorts := getServicesPorts(ingEx)
+	if len(ports) > 0 {
+		ingCfg.Ports = ports
+	}
+
+	if len(sslPorts) > 0 {
+		ingCfg.SSLPorts = sslPorts
+	}
+
 	return ingCfg
 }
 
@@ -403,6 +415,53 @@ func parseStickyService(service string) (serviceName string, stickyCookie string
 	}
 
 	return svcNameParts[1], parts[1], nil
+}
+
+func getServicesPorts(ingEx *IngressEx) ([]int, []int) {
+	ports := map[string][]int{}
+
+	annotations := []string{
+		"nginx.org/listen-ports",
+		"nginx.org/listen-ports-ssl",
+	}
+
+	for _, annotation := range annotations {
+		if values, exists := ingEx.Ingress.Annotations[annotation]; exists {
+			for _, value := range strings.Split(values, ",") {
+				if port, err := parsePort(value); err != nil {
+					glog.Errorf(
+						"In %v %s contains invalid declaration: %v, ignoring",
+						ingEx.Ingress.Name,
+						annotation,
+						err,
+					)
+				} else {
+					ports[annotation] = append(ports[annotation], port)
+				}
+			}
+		}
+	}
+
+	return ports[annotations[0]], ports[annotations[1]]
+}
+
+func parsePort(value string) (int, error) {
+	port, err := strconv.ParseInt(value, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"Unable to parse port as integer: %s\n",
+			err,
+		)
+	}
+
+	if port <= 0 {
+		return 0, fmt.Errorf(
+			"Port number should be greater than zero: %q",
+			port,
+		)
+	}
+
+	return int(port), nil
 }
 
 func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool) Location {
