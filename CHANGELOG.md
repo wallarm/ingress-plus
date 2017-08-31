@@ -1,5 +1,16 @@
 # Changelog
 
+### 1.0.0-beta0
+
+* [175](https://github.com/nginxinc/kubernetes-ingress/pull/175): Add support for JWT for NGINX Plus.
+* [171](https://github.com/nginxinc/kubernetes-ingress/pull/171): Allow NGINX to listen on non-standard ports. Thanks to [Stanislav Seletskiy](https://github.com/seletskiy).
+* [170](https://github.com/nginxinc/kubernetes-ingress/pull/170): Add the default server. **Note**: The Ingress controller will fail to start if there are no cert and key for the default server. You can pass a TLS Secret for the default server as an argument to the Ingress controller or add a cert and a key to the Docker image. 
+* [169](https://github.com/nginxinc/kubernetes-ingress/pull/169): Ignore Ingress resources with empty hostnames.
+* [168](https://github.com/nginxinc/kubernetes-ingress/pull/168): Add the `nginx.org/lb-method` annotation. Thanks to [Sajal Kayan](https://github.com/sajal).
+* [166](https://github.com/nginxinc/kubernetes-ingress/pull/166): Watch Secret resources for updates. **Note**: If a Secret referenced by one or more Ingress resources becomes invalid or gets removed, the configuration for those Ingress resources will be disabled until there is a valid Secret.
+* [160](https://github.com/nginxinc/kubernetes-ingress/pull/160): Add support for events. See the details [here](https://github.com/nginxinc/kubernetes-ingress/pull/160).
+* [157](https://github.com/nginxinc/kubernetes-ingress/pull/157): Add graceful termination - when the Ingress controller receives `SIGTERM`, it shutdowns itself as well as NGINX, using `nginx -s quit`.
+
 ### 0.9.0
 
 * [156](https://github.com/nginxinc/kubernetes-ingress/pull/156): Write a pem file with an SSL certificate and key atomically.
