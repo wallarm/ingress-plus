@@ -11,7 +11,7 @@
 
 ## 1. Deploy the Ingress Controller
 
-1. Create a Secret with an SSL certificate and key for the default server of NGINX/NGINX Plus. The default server returns the Not Found page with the 404 status code for all requests for domains for which there are no Ingress rules defined. 
+1. Create a Secret with an SSL certificate and key for the default server of NGINX/NGINX Plus. The default server returns the Not Found page with the 404 status code for all requests for domains for which there are no Ingress rules defined. It is recommended that you use your own certificate and key. 
     ```
     $ kubectl create -f default-server-secret.yaml
     ```
