@@ -15,6 +15,7 @@ There are other cases when you need to build your own image. For example if you 
 Before you can build the image, make sure that the following software is installed on your machine:
 * [Docker](https://www.docker.com/products/docker)
 * [GNU Make](https://www.gnu.org/software/make/)
+* [OpenSSL](https://www.openssl.org/), optionally, if you would like to generate a self-signed certificate and a key for the default server.
 
 Additionally, for NGINX Plus, you must have the NGINX Plus license. If you don't have one, you can sign up for a [free 30-day trial](https://www.nginx.com/free-trial-request/).  Put the certificate (`nginx-repo.crt`) and the key (`nginx-repo.key`) of your license inside this folder.
 
