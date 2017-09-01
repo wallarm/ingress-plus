@@ -11,9 +11,13 @@ upstream {{$upstream.Name}} {
 
 {{range $server := .Servers}}
 server {
-	listen 80{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{range $port := $server.Ports}}
+	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- end}}
 	{{if $server.SSL}}
-	listen 443 ssl{{if $server.HTTP2}} http2{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- range $port := $server.SSLPorts}}
+	listen {{$port}} ssl{{if $server.HTTP2}} http2{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- end}}
 	ssl_certificate {{$server.SSLCertificate}};
 	ssl_certificate_key {{$server.SSLCertificateKey}};
 	{{end}}
@@ -35,7 +39,7 @@ server {
 
 	{{if $server.SSL}}
 	if ($scheme = http) {
-		return 301 https://$host$request_uri;
+		return 301 https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
 	{{- if $server.HSTS}}
 	add_header Strict-Transport-Security "max-age={{$server.HSTSMaxAge}}; {{if $server.HSTSIncludeSubdomains}}includeSubDomains; {{end}}preload" always;{{end}}
