@@ -30,8 +30,9 @@ We provide the following extensions to our Ingress controller:
 * [SSL Services](examples/ssl-services), which allows you to load balance HTTPS applications.
 * [Rewrites](examples/rewrites), which allows you to rewrite the URI of a request before sending it to the application.
 * [Session Persistence](examples/session-persistence) (NGINX Plus only), which guarantees that all the requests from the same client are always passed to the same backend container.
+* [Support for JWTs](examples/jwt) (NGINX Plus only), which allows NGINX Plus to authenticate requests by validating JSON Web Tokens (JWTs).
 
-Additionally, we provide a mechanism to customize the NGINX configuration. Refer to the [examples folder](examples) to find out how to [deploy](examples/complete-example) the Ingress controller and [customize](examples/customization) the NGINX configuration.
+Additional extensions as well as a mechanism to customize NGINX configuration are available. See [examples/customization](examples/customization).
 
 ## Benefits of Using the Ingress Controller with NGINX Plus
 
@@ -39,11 +40,13 @@ Additionally, we provide a mechanism to customize the NGINX configuration. Refer
 
 The Ingress controller leverages the advanced features of NGINX Plus, which gives you the following additional benefits:
 
-* **Reduced number of configuration reloads**
-Every time the number of pods of services you expose via Ingress changes, the Ingress controller updates the configuration of NGINX to reflect those changes. For the open source NGINX software, the configuration file must be changed and the configuration reloaded. For NGINX Plus, the [on-the-fly reconfiguration](https://www.nginx.com/products/on-the-fly-reconfiguration/) feature is utilized, which allows NGINX Plus to be updated on-the-fly without reloading the configuration. This prevents a potential increase of memory usage and overall system overloading, which could occur with too frequent configuration reloads.
+* **Improved system resources utilization for large-scale deployments**
+Every time the number of pods of services you expose via Ingress changes, the Ingress controller updates the configuration of NGINX to reflect those changes. For the open source NGINX software, the configuration file must be changed and the configuration reloaded. For NGINX Plus, the [on-the-fly reconfiguration](https://www.nginx.com/products/on-the-fly-reconfiguration/) feature is utilized, which allows NGINX Plus to be updated on-the-fly without reloading the configuration. This prevents increase of memory usage during reloads, especially with a high volume of client requests, as well as increased memory usage when load balancing applications with long-lived connections (WebSocket, applications with file uploading/downloading or streaming). As a result, NGINX Plus Ingress controller is better suited for production-ready deployments.
 * **Real-time statistics**
 NGINX Plus provides you with [advanced statistics](https://www.nginx.com/products/live-activity-monitoring/), which you can access either through the API or via the built-in dashboard. This can give you insights into how NGINX Plus and your applications are performing.
 * **Session persistence** When enabled, NGINX Plus makes sure that all the requests from the same client are always passed to the same backend container using the *sticky cookie* method. Refer to the [session persistence examples](examples/session-persistence) to find out how to configure it.
+* **JWTs** NGINX Plus can validate JSON Web Tokens (JWTs), providing a flexible authentication mechanism.
+* **Support** Support from NGINX Inc is available for NGINX Plus Ingress controller.
 
 **Note**: Deployment of the Ingress controller for NGINX Plus requires you to do one extra step: build your own [Docker image](nginx-controller) using the certificate and key for your subscription.
 The Docker image of the Ingress controller for NGINX is [available on Docker Hub](https://hub.docker.com/r/nginxdemos/nginx-ingress/).
@@ -52,20 +55,11 @@ The Docker image of the Ingress controller for NGINX is [available on Docker Hub
 
 You can run multiple Ingress controllers at the same time. For example, if your Kubernetes cluster is deployed in cloud, you can run the NGINX controller and the corresponding cloud HTTP load balancing controller. Refer to the [example](examples/multiple-ingress-controllers) to learn more.
 
-## Advanced Load Balancing (Beyond Ingress)
+## Advanced Load Balancing/An Alternative Method of Configuration 
 
-When your requirements go beyond what Ingress offers, you can use NGINX and
-NGINX Plus without the Ingress Controller.
+When your requirements go beyond what Ingress and Ingress extensions offer or if you are looking for an alternative method of configuring NGINX, it is possible to use NGINX or NGINX Plus without the Ingress Controller.
 
 NGINX Plus comes with a [DNS-based dynamic reconfiguration feature](https://www.nginx.com/blog/dns-service-discovery-nginx-plus/), which lets you keep the list of the endpoints of your services in sync with NGINX Plus. Read more about how to setup NGINX Plus this way in [Load Balancing Kubernetes Services with NGINX Plus](https://www.nginx.com/blog/load-balancing-kubernetes-services-nginx-plus/).
-
-## Production Status
-
-This is the preview version of the Ingress controller.
-
-## Support
-
-Support from the [NGINX Professional Services Team](https://www.nginx.com/services/) is available when using the NGINX Plus Ingress controller.
 
 ## Contacts
 
