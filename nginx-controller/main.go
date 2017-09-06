@@ -48,7 +48,7 @@ var (
 	defaultServerSecret = flag.String("default-server-tls-secret", "",
 		`Specifies a secret with a TLS certificate and key for SSL termination of
 		the default server. The value must follow the following format: <namespace>/<name>.
-		If not specified, the key and the cert from /etc/nginx/default is used.`)
+		If not specified, the key and the cert from /etc/nginx/secrets/default is used.`)
 )
 
 func main() {
@@ -107,6 +107,11 @@ func main() {
 
 		bytes := nginx.GenerateCertAndKeyFileContent(secret)
 		ngxc.AddOrUpdateSecretFile(nginx.DefaultServerSecretName, bytes, nginx.TLSSecretFileMode)
+	} else {
+		_, err = os.Stat("/etc/nginx/secrets/default")
+		if os.IsNotExist(err) {
+			glog.Fatalf("A TLS cert and key for the default server is not found")
+		}
 	}
 
 	nginxDone := make(chan error, 1)
