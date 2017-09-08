@@ -31,8 +31,8 @@ var (
 	proxyURL = flag.String("proxy", "",
 		`If specified, the controller assumes a kubctl proxy server is running on the
 		given url and creates a proxy client. Regenerated NGINX configuration files
-    are not written to the disk, instead they are printed to stdout. Also NGINX
-    is not getting invoked. This flag is for testing.`)
+    	are not written to the disk, instead they are printed to stdout. Also NGINX
+    	is not getting invoked. This flag is for testing.`)
 
 	watchNamespace = flag.String("watch-namespace", api.NamespaceAll,
 		`Namespace to watch for Ingress/Services/Endpoints. By default the controller
@@ -44,6 +44,12 @@ var (
 
 	nginxPlus = flag.Bool("nginx-plus", false,
 		`Enables support for NGINX Plus.`)
+
+	ingressClass = flag.String("ingress-class", "nginx",
+		`Specifies a class of ingress. Only processes Ingresses with this value in annotations. Can be used with --use-ingress-class-only. Default 'nginx'`)
+
+	useIngressClassOnly = flag.Bool("use-ingress-class-only", false,
+		`If true, ingress resource will handled by ingress controller with class which specifed by value of ingress-class. Default false`)
 
 	defaultServerSecret = flag.String("default-server-tls-secret", "",
 		`Specifies a secret with a TLS certificate and key for SSL termination of
@@ -128,7 +134,7 @@ func main() {
 	}
 	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus)
+	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()
 
