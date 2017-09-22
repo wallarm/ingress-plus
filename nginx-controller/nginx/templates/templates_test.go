@@ -9,7 +9,9 @@ import (
 )
 
 const nginxIngressTmpl = "nginx.ingress.tmpl"
+const nginxMainTmpl = "nginx.tmpl"
 const nginxPlusIngressTmpl = "nginx-plus.ingress.tmpl"
+const nginxPlusMainTmpl = "nginx-plus.tmpl"
 
 var testUps = nginx.Upstream{
 	Name: "test",
@@ -43,6 +45,12 @@ var ingCfg = nginx.IngressNginxConfig{
 	Upstreams: []nginx.Upstream{testUps},
 }
 
+var mainCfg = nginx.NginxMainConfig{
+	ServerNamesHashMaxSize: "512",
+	ServerTokens:           "off",
+	WorkerProcesses:        "auto",
+}
+
 func TestIngressForNGINXPlus(t *testing.T) {
 	tmpl, err := template.New(nginxPlusIngressTmpl).ParseFiles(nginxPlusIngressTmpl)
 	if err != nil {
@@ -67,6 +75,36 @@ func TestIngressForNGINX(t *testing.T) {
 	var buf bytes.Buffer
 
 	err = tmpl.Execute(&buf, ingCfg)
+	t.Log(string(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+}
+
+func TestMainForNGINXPlus(t *testing.T) {
+	tmpl, err := template.New(nginxPlusMainTmpl).ParseFiles(nginxPlusMainTmpl)
+	if err != nil {
+		t.Fatalf("Failed to parse template file: %v", err)
+	}
+
+	var buf bytes.Buffer
+
+	err = tmpl.Execute(&buf, mainCfg)
+	t.Log(string(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+}
+
+func TestMainForNGINX(t *testing.T) {
+	tmpl, err := template.New(nginxMainTmpl).ParseFiles(nginxMainTmpl)
+	if err != nil {
+		t.Fatalf("Failed to parse template file: %v", err)
+	}
+
+	var buf bytes.Buffer
+
+	err = tmpl.Execute(&buf, mainCfg)
 	t.Log(string(buf.Bytes()))
 	if err != nil {
 		t.Fatalf("Failed to write template %v", err)

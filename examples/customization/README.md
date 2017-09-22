@@ -37,6 +37,7 @@ The table below summarizes some of the options. More options (extensions) are av
 | `nginx.org/lb-method` | `lb-method` | Sets the [load balancing method](https://www.nginx.com/resources/admin-guide/load-balancer/#method). The default `""` specifies the round-robin method. | `""` |
 | `nginx.org/listen-ports` | N/A | Configures HTTP ports that NGINX will listen on. | `[80]` |
 | `nginx.org/listen-ports-ssl` | N/A | Configures HTTPS ports that NGINX will listen on. | `[443]` |
+| N/A | `worker-processes` | Sets the value of the [worker_processes](http://nginx.org/en/docs/ngx_core_module.html#worker_processes) directive. | `auto` |
 
 ## Using ConfigMaps
 
@@ -47,29 +48,29 @@ the config map to use with the following format: `<namespace>/<name>`. See [ngin
 
 1. Create a configmaps file with the name *nginx-config.yaml* and set the values
 that make sense for your setup:
-  ```yaml
-  kind: ConfigMap
-  apiVersion: v1
-  metadata:
-    name: nginx-config
-  data:
-    proxy-connect-timeout: "10s"
-    proxy-read-timeout: "10s"
-    client-max-body-size: "2m"
-  ```
-  See the **nginx-config.yaml** from this directory for a complete example.
+    ```yaml
+    kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: nginx-config
+    data:
+      proxy-connect-timeout: "10s"
+      proxy-read-timeout: "10s"
+      client-max-body-size: "2m"
+    ```
+    See the **nginx-config.yaml** from this directory for a complete example.
 
-2. Create a configmaps resource:
-  ```
-  $ kubectl create -f nginx-config.yaml
-  ```
-  The NGINX configuration will be updated.
+1. Create a configmaps resource:
+    ```
+    $ kubectl create -f nginx-config.yaml
+    ```
+    The NGINX configuration will be updated.
 
-3. If you want to update the configmaps, update the file and replace the config map:
-  ```
-  $ kubectl replace -f nginx-config.yaml
-  ```
-  The NGINX configuration will be updated.
+1. If you want to update the configmaps, update the file and replace the config map:
+    ```
+    $ kubectl replace -f nginx-config.yaml
+    ```
+    The NGINX configuration will be updated.
 
 ## Using Annotations
 

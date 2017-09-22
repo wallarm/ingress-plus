@@ -559,7 +559,13 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 				cfg.ServerSnippets = serverSnippets
 			}
 		}
-
+		if _, exists, err := nginx.GetMapKeyAsInt(cfgm.Data, "worker-processes", cfgm); exists {
+			if err != nil && cfgm.Data["worker-processes"] != "auto" {
+				glog.Errorf("Configmap %s/%s: Invalid value for worker-processes key: must be an integer or the string 'auto', got %q", cfgm.GetNamespace(), cfgm.GetName(), cfgm.Data["worker-processes"])
+			} else {
+				cfg.MainWorkerProcesses = cfgm.Data["worker-processes"]
+			}
+		}
 	}
 
 	var ingExes []*nginx.IngressEx
