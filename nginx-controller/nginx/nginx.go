@@ -113,6 +113,7 @@ type NginxMainConfig struct {
 	HTTP2                  bool
 	ServerTokens           string
 	ProxyProtocol          bool
+	WorkerProcesses        string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -139,6 +140,7 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool, ngi
 	cfg := &NginxMainConfig{
 		ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize,
 		ServerTokens:           NewDefaultConfig().ServerTokens,
+		WorkerProcesses:        NewDefaultConfig().MainWorkerProcesses,
 	}
 	ngxc.UpdateMainConfigFile(cfg)
 

@@ -25,6 +25,7 @@ type Config struct {
 	HSTSMaxAge                    int64
 	HSTSIncludeSubdomains         bool
 	LBMethod                      string
+	MainWorkerProcesses           string
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string
@@ -55,6 +56,7 @@ func NewDefaultConfig() *Config {
 		ClientMaxBodySize:          "1m",
 		MainServerNamesHashMaxSize: "512",
 		ProxyBuffering:             true,
+		MainWorkerProcesses:        "auto",
 		HSTSMaxAge:                 2592000,
 		Ports:                      []int{80},
 		SSLPorts:                   []int{443},
