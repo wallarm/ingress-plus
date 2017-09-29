@@ -65,18 +65,22 @@ type LoadBalancerController struct {
 	nginxPlus            bool
 	recorder             record.EventRecorder
 	defaultServerSecret  string
+	ingressClass         string
+	useIngressClassOnly  bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool, ingressClass string, useIngressClassOnly bool) (*LoadBalancerController, error) {
 	lbc := LoadBalancerController{
 		client:              kubeClient,
 		stopCh:              make(chan struct{}),
 		cnf:                 cnf,
 		defaultServerSecret: defaultServerSecret,
 		nginxPlus:           nginxPlus,
+		ingressClass:        ingressClass,
+		useIngressClassOnly: useIngressClassOnly,
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -89,10 +93,12 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 
 	lbc.syncQueue = NewTaskQueue(lbc.sync)
 
+	glog.V(3).Infof("Nginx Ingress Controller has class: %v", ingressClass)
+
 	ingHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
-			if !isNginxIngress(addIng) {
+			if !lbc.isNginxIngress(addIng) {
 				glog.Infof("Ignoring Ingress %v based on Annotation %v", addIng.Name, ingressClassKey)
 				return
 			}
@@ -113,7 +119,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 					return
 				}
 			}
-			if !isNginxIngress(remIng) {
+			if !lbc.isNginxIngress(remIng) {
 				return
 			}
 			glog.V(3).Infof("Removing Ingress: %v", remIng.Name)
@@ -121,7 +127,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			curIng := cur.(*extensions.Ingress)
-			if !isNginxIngress(curIng) {
+			if !lbc.isNginxIngress(curIng) {
 				return
 			}
 			if !reflect.DeepEqual(old, cur) {
@@ -341,7 +347,7 @@ func (lbc *LoadBalancerController) syncEndp(task Task) {
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
-			if !isNginxIngress(&ing) {
+			if !lbc.isNginxIngress(&ing) {
 				continue
 			}
 			ingEx, err := lbc.createIngress(&ing)
@@ -571,7 +577,7 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	var ingExes []*nginx.IngressEx
 	ings, _ := lbc.ingLister.List()
 	for i := range ings.Items {
-		if !isNginxIngress(&ings.Items[i]) {
+		if !lbc.isNginxIngress(&ings.Items[i]) {
 			continue
 		}
 		ingEx, err := lbc.createIngress(&ings.Items[i])
@@ -751,7 +757,7 @@ func (lbc *LoadBalancerController) findIngressesForSecret(secret string) ([]exte
 
 items:
 	for _, ing := range ings.Items {
-		if !isNginxIngress(&ing) {
+		if !lbc.isNginxIngress(&ing) {
 			continue
 		}
 		for _, tls := range ing.Spec.TLS {
@@ -775,7 +781,7 @@ items:
 func (lbc *LoadBalancerController) enqueueIngressForService(svc *api_v1.Service) {
 	ings := lbc.getIngressesForService(svc)
 	for _, ing := range ings {
-		if !isNginxIngress(&ing) {
+		if !lbc.isNginxIngress(&ing) {
 			continue
 		}
 		lbc.syncQueue.enqueue(&ing)
@@ -994,11 +1000,19 @@ func ParseNamespaceName(value string) (ns string, name string, err error) {
 	return res[0], res[1], nil
 }
 
-func isNginxIngress(ing *extensions.Ingress) bool {
+// Check if resource ingress class annotatios (if exist) is matching with ingress controller class
+// If annotatins is absent and use-ingress-class-only enabled - ingress resource would ignore
+func (lbc *LoadBalancerController) isNginxIngress(ing *extensions.Ingress) bool {
 	if class, exists := ing.Annotations[ingressClassKey]; exists {
+		if lbc.useIngressClassOnly {
+			return class == lbc.ingressClass
+		}
 		return class == nginxIngressClass || class == ""
+	} else {
+		if lbc.useIngressClassOnly {
+			return false
+		}
 	}
-
 	return true
 }
 
