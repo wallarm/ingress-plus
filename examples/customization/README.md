@@ -38,6 +38,7 @@ The table below summarizes some of the options. More options (extensions) are av
 | `nginx.org/listen-ports` | N/A | Configures HTTP ports that NGINX will listen on. | `[80]` |
 | `nginx.org/listen-ports-ssl` | N/A | Configures HTTPS ports that NGINX will listen on. | `[443]` |
 | N/A | `worker-processes` | Sets the value of the [worker_processes](http://nginx.org/en/docs/ngx_core_module.html#worker_processes) directive. | `auto` |
+| N/A | `worker-cpu-affinity` | Sets the value of the [worker_cpu_affinity](http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity) directive. | N/A |
 
 ## Using ConfigMaps
 

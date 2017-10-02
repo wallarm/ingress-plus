@@ -663,10 +663,11 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 		SSLCiphers:                config.MainServerSSLCiphers,
 		SSLDHParam:                config.MainServerSSLDHParam,
 		SSLPreferServerCiphers:    config.MainServerSSLPreferServerCiphers,
-		HTTP2:           config.HTTP2,
-		ServerTokens:    config.ServerTokens,
-		ProxyProtocol:   config.ProxyProtocol,
-		WorkerProcesses: config.MainWorkerProcesses,
+		HTTP2:             config.HTTP2,
+		ServerTokens:      config.ServerTokens,
+		ProxyProtocol:     config.ProxyProtocol,
+		WorkerProcesses:   config.MainWorkerProcesses,
+		WorkerCPUAffinity: config.MainWorkerCPUAffinity,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

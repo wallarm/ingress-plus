@@ -1,6 +1,8 @@
 
 user  nginx;
 worker_processes  {{.WorkerProcesses}};
+{{- if .WorkerCPUAffinity}}
+worker_cpu_affinity {{.WorkerCPUAffinity}};{{end}}
 
 daemon off;
 
