@@ -572,6 +572,9 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 				cfg.MainWorkerProcesses = cfgm.Data["worker-processes"]
 			}
 		}
+		if workerCPUAffinity, exists := cfgm.Data["worker-cpu-affinity"]; exists {
+			cfg.MainWorkerCPUAffinity = workerCPUAffinity
+		}
 	}
 
 	var ingExes []*nginx.IngressEx

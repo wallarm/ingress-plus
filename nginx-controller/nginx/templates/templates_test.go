@@ -49,6 +49,7 @@ var mainCfg = nginx.NginxMainConfig{
 	ServerNamesHashMaxSize: "512",
 	ServerTokens:           "off",
 	WorkerProcesses:        "auto",
+	WorkerCPUAffinity:      "auto",
 }
 
 func TestIngressForNGINXPlus(t *testing.T) {

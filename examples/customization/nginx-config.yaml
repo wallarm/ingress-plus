@@ -45,3 +45,4 @@ data:
     proxy_temp_path  /var/nginx/proxy_temp;
     charset  koi8-r;
   worker-processes: "1" # default is "auto". Sets the value of the worker_processes directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_processes
+  worker-cpu-affinity: "auto" # No default. Sets the value of the worker_cpu_affinity directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity

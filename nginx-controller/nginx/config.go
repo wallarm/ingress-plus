@@ -26,6 +26,7 @@ type Config struct {
 	HSTSIncludeSubdomains         bool
 	LBMethod                      string
 	MainWorkerProcesses           string
+	MainWorkerCPUAffinity         string
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string
