@@ -179,7 +179,16 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		servers = append(servers, server)
 	}
 
-	return IngressNginxConfig{Upstreams: upstreamMapToSlice(upstreams), Servers: servers}
+	var keepalive string
+	if ingCfg.Keepalive > 0 {
+		keepalive = strconv.FormatInt(ingCfg.Keepalive, 10)
+	}
+
+	return IngressNginxConfig{
+		Upstreams: upstreamMapToSlice(upstreams),
+		Servers:   servers,
+		Keepalive: keepalive,
+	}
 }
 
 func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
@@ -321,6 +330,14 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 
 	if len(sslPorts) > 0 {
 		ingCfg.SSLPorts = sslPorts
+	}
+
+	if keepalive, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/keepalive", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.Keepalive = keepalive
+		}
 	}
 
 	return ingCfg

@@ -32,6 +32,7 @@ type NginxController struct {
 type IngressNginxConfig struct {
 	Upstreams []Upstream
 	Servers   []Server
+	Keepalive string
 }
 
 // Upstream describes an NGINX upstream

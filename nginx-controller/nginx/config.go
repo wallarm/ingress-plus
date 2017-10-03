@@ -27,6 +27,7 @@ type Config struct {
 	LBMethod                      string
 	MainWorkerProcesses           string
 	MainWorkerCPUAffinity         string
+	Keepalive                     int64
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string
