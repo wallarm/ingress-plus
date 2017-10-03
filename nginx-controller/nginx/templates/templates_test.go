@@ -43,6 +43,7 @@ var ingCfg = nginx.IngressNginxConfig{
 		},
 	},
 	Upstreams: []nginx.Upstream{testUps},
+	Keepalive: "16",
 }
 
 var mainCfg = nginx.NginxMainConfig{

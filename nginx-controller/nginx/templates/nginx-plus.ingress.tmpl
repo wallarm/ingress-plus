@@ -7,6 +7,7 @@ upstream {{$upstream.Name}} {
 	{{if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{end}}
+	{{if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
 }{{end}}
 
 {{range $server := .Servers}}
@@ -74,7 +75,9 @@ server {
 		{{if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
-		{{end}}
+		{{- else}}
+		{{- if $.Keepalive}}proxy_set_header Connection "";{{end}}
+		{{- end}}
 
 		{{- if $location.LocationSnippets}}
 		{{range $value := $location.LocationSnippets}}
