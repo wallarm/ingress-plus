@@ -61,6 +61,7 @@ type Server struct {
 	StatusZone            string
 	HTTP2                 bool
 	RedirectToHTTPS       bool
+	SSLRedirect           bool
 	ProxyProtocol         bool
 	HSTS                  bool
 	HSTSMaxAge            int64

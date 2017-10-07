@@ -10,6 +10,7 @@ type Config struct {
 	ClientMaxBodySize             string
 	HTTP2                         bool
 	RedirectToHTTPS               bool
+	SSLRedirect                   bool
 	MainHTTPSnippets              []string
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string
@@ -56,6 +57,7 @@ func NewDefaultConfig() *Config {
 		ProxyConnectTimeout:        "60s",
 		ProxyReadTimeout:           "60s",
 		ClientMaxBodySize:          "1m",
+		SSLRedirect:                true,
 		MainServerNamesHashMaxSize: "512",
 		ProxyBuffering:             true,
 		MainWorkerProcesses:        "auto",
