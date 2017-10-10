@@ -122,6 +122,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			ServerTokens:          ingCfg.ServerTokens,
 			HTTP2:                 ingCfg.HTTP2,
 			RedirectToHTTPS:       ingCfg.RedirectToHTTPS,
+			SSLRedirect:           ingCfg.SSLRedirect,
 			ProxyProtocol:         ingCfg.ProxyProtocol,
 			HSTS:                  ingCfg.HSTS,
 			HSTSMaxAge:            ingCfg.HSTSMaxAge,
@@ -257,6 +258,13 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 			glog.Error(err)
 		} else {
 			ingCfg.RedirectToHTTPS = redirectToHTTPS
+		}
+	}
+	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.SSLRedirect = sslRedirect
 		}
 	}
 	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {

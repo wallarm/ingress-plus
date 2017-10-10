@@ -24,13 +24,18 @@ var ingCfg = nginx.IngressNginxConfig{
 
 	Servers: []nginx.Server{
 		nginx.Server{
-			Name:         "test.example.com",
-			ServerTokens: "off",
-			StatusZone:   "test.example.com",
-			JWTKey:       "/etc/nginx/secrets/key.jwk",
-			JWTRealm:     "closed site",
-			JWTToken:     "$cookie_auth_token",
-			JWTLoginURL:  "https://test.example.com/login",
+			Name:              "test.example.com",
+			ServerTokens:      "off",
+			StatusZone:        "test.example.com",
+			JWTKey:            "/etc/nginx/secrets/key.jwk",
+			JWTRealm:          "closed site",
+			JWTToken:          "$cookie_auth_token",
+			JWTLoginURL:       "https://test.example.com/login",
+			SSL:               true,
+			SSLCertificate:    "secret.pem",
+			SSLCertificateKey: "secret.pem",
+			SSLPorts:          []int{443},
+			SSLRedirect:       true,
 			Locations: []nginx.Location{
 				nginx.Location{
 					Path:                "/",
