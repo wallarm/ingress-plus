@@ -1,3 +1,6 @@
+
+[![Build Status](https://travis-ci.org/nginxinc/kubernetes-ingress.svg?branch=master)](https://travis-ci.org/isserrano/kubernetes-ingress)
+
 # NGINX Ingress Controller
 
 This repo provides an implementation of an Ingress controller for NGINX and NGINX Plus. This implementation is different from the NGINX Ingress controller in [kubernetes/ingress repo](https://github.com/kubernetes/ingress).
