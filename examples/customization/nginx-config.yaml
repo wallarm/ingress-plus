@@ -46,4 +46,5 @@ data:
     charset  koi8-r;
   worker-processes: "1" # default is "auto". Sets the value of the worker_processes directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_processes
   worker-cpu-affinity: "auto" # No default. Sets the value of the worker_cpu_affinity directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity
+  worker-shutdown-timeout: "5m" # No default. Sets the value of the worker_shutdown_timeout directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_shutdown_timeout
   keepalive: "32" # default is 0. When > 0, sets the value of the keepalive directive and adds 'proxy_set_header Connection "";' to a location block. See http://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive

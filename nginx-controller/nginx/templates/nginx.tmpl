@@ -3,7 +3,8 @@ user  nginx;
 worker_processes  {{.WorkerProcesses}};
 {{- if .WorkerCPUAffinity}}
 worker_cpu_affinity {{.WorkerCPUAffinity}};{{end}}
-
+{{- if .WorkerShutdownTimeout}}
+worker_shutdown_timeout {{.WorkerShutdownTimeout}};{{end}}
 daemon off;
 
 error_log  /var/log/nginx/error.log warn;
