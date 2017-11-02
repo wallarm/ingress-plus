@@ -28,6 +28,7 @@ type Config struct {
 	LBMethod                      string
 	MainWorkerProcesses           string
 	MainWorkerCPUAffinity         string
+	MainWorkerShutdownTimeout     string
 	Keepalive                     int64
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html

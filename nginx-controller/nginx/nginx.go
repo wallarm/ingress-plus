@@ -117,6 +117,7 @@ type NginxMainConfig struct {
 	ProxyProtocol          bool
 	WorkerProcesses        string
 	WorkerCPUAffinity      string
+	WorkerShutdownTimeout  string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
