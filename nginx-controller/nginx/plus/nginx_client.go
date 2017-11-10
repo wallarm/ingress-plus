@@ -236,7 +236,7 @@ func (client *NginxClient) GetHTTPServers(upstream string) ([]string, error) {
 func (client *NginxClient) getIDOfHTTPServer(upstream string, name string) (int, error) {
 	peers, err := client.getUpstreamPeers(upstream)
 	if err != nil {
-		return -1, fmt.Errorf("Error getting id of server %v of upstream %v:", name, upstream)
+		return -1, fmt.Errorf("Error getting id of server %v of upstream %v: %v", name, upstream, err)
 	}
 
 	for _, p := range peers.Peers {

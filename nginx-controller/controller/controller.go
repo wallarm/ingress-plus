@@ -315,14 +315,14 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 
 // Run starts the loadbalancer controller
 func (lbc *LoadBalancerController) Run() {
-	go lbc.ingController.Run(lbc.stopCh)
 	go lbc.svcController.Run(lbc.stopCh)
 	go lbc.endpController.Run(lbc.stopCh)
 	go lbc.secrController.Run(lbc.stopCh)
-	go lbc.syncQueue.run(time.Second, lbc.stopCh)
 	if lbc.watchNginxConfigMaps {
 		go lbc.cfgmController.Run(lbc.stopCh)
 	}
+	go lbc.ingController.Run(lbc.stopCh)
+	go lbc.syncQueue.run(time.Second, lbc.stopCh)
 	<-lbc.stopCh
 }
 
@@ -348,6 +348,9 @@ func (lbc *LoadBalancerController) syncEndp(task Task) {
 
 		for _, ing := range ings {
 			if !lbc.isNginxIngress(&ing) {
+				continue
+			}
+			if !lbc.cnf.HasIngress(&ing) {
 				continue
 			}
 			ingEx, err := lbc.createIngress(&ing)
@@ -598,6 +601,9 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	ings, _ := lbc.ingLister.List()
 	for i := range ings.Items {
 		if !lbc.isNginxIngress(&ings.Items[i]) {
+			continue
+		}
+		if !lbc.cnf.HasIngress(&ings.Items[i]) {
 			continue
 		}
 		ingEx, err := lbc.createIngress(&ings.Items[i])
