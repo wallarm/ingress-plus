@@ -27,17 +27,19 @@ const JWTKeyAnnotation = "nginx.com/jwt-key"
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
-	nginx    *NginxController
-	config   *Config
-	nginxAPI *plus.NginxAPIController
+	nginx     *NginxController
+	config    *Config
+	nginxAPI  *plus.NginxAPIController
+	ingresses map[string]*IngressEx
 }
 
 // NewConfigurator creates a new Configurator
 func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *plus.NginxAPIController) *Configurator {
 	cnf := Configurator{
-		nginx:    nginx,
-		config:   config,
-		nginxAPI: nginxAPI,
+		nginx:     nginx,
+		config:    config,
+		nginxAPI:  nginxAPI,
+		ingresses: make(map[string]*IngressEx),
 	}
 
 	return &cnf
@@ -63,6 +65,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
 	nginxCfg := cnf.generateNginxCfg(ingEx, pems, jwtKeyFileName)
 	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
 	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
+	cnf.ingresses[name] = ingEx
 }
 
 func (cnf *Configurator) updateSecrets(ingEx *IngressEx) (map[string]string, string) {
@@ -611,7 +614,9 @@ func GenerateCertAndKeyFileContent(secret *api_v1.Secret) []byte {
 // DeleteSecret deletes the file associated with the secret and the configuration files for the Ingress resources. NGINX is reloaded only when len(ings) > 0
 func (cnf *Configurator) DeleteSecret(key string, ings []extensions.Ingress) error {
 	for _, ing := range ings {
-		cnf.nginx.DeleteIngress(objectMetaToFileName(&ing.ObjectMeta))
+		name := objectMetaToFileName(&ing.ObjectMeta)
+		cnf.nginx.DeleteIngress(name)
+		delete(cnf.ingresses, name)
 	}
 
 	cnf.nginx.DeleteSecretFile(keyToFileName(key))
@@ -627,7 +632,10 @@ func (cnf *Configurator) DeleteSecret(key string, ings []extensions.Ingress) err
 
 // DeleteIngress deletes NGINX configuration for the Ingress resource
 func (cnf *Configurator) DeleteIngress(key string) error {
-	cnf.nginx.DeleteIngress(keyToFileName(key))
+	name := keyToFileName(key)
+	cnf.nginx.DeleteIngress(name)
+	delete(cnf.ingresses, name)
+
 	if err := cnf.nginx.Reload(); err != nil {
 		return fmt.Errorf("Error when removing ingress %v: %v", key, err)
 	}
@@ -639,23 +647,27 @@ func (cnf *Configurator) UpdateEndpoints(ingEx *IngressEx) error {
 	cnf.addOrUpdateIngress(ingEx)
 
 	if cnf.isPlus() {
-		cnf.updatePlusEndpoints(ingEx)
-	} else {
-		if err := cnf.nginx.Reload(); err != nil {
-			return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+		err := cnf.updatePlusEndpoints(ingEx)
+		if err == nil {
+			return nil
 		}
+		glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 	}
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+	}
+
 	return nil
 }
 
-func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) {
+func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName+ingEx.Ingress.Spec.Backend.ServicePort.String()]
 		if exists {
 			err := cnf.nginxAPI.UpdateServers(name, endps)
 			if err != nil {
-				glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
+				return fmt.Errorf("Couldn't update the endpoints for %v: %v", name, err)
 			}
 		}
 	}
@@ -669,11 +681,13 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) {
 			if exists {
 				err := cnf.nginxAPI.UpdateServers(name, endps)
 				if err != nil {
-					glog.Warningf("Couldn't update the endponts for %v: %v", name, err)
+					return fmt.Errorf("Couldn't update the endpoints for %v: %v", name, err)
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
 // UpdateConfig updates NGINX Configuration parameters
@@ -719,4 +733,11 @@ func keyToFileName(key string) string {
 
 func objectMetaToFileName(meta *meta_v1.ObjectMeta) string {
 	return meta.Namespace + "-" + meta.Name
+}
+
+// HasIngress checks if the Ingress resource is present in NGINX configuration
+func (cnf *Configurator) HasIngress(ing *extensions.Ingress) bool {
+	name := objectMetaToFileName(&ing.ObjectMeta)
+	_, exists := cnf.ingresses[name]
+	return exists
 }
