@@ -554,6 +554,13 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 			cfg.ProxyMaxTempFileSize = proxyMaxTempFileSize
 		}
 
+                if mainMainSnippets, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
+                        if err != nil {
+                                glog.Error(err)
+                        } else {
+                                cfg.MainMainSnippets = mainMainSnippets
+                        }
+                }
 		if mainHTTPSnippets, exists, err := nginx.GetMapKeyAsStringSlice(cfgm.Data, "http-snippets", cfgm, "\n"); exists {
 			if err != nil {
 				glog.Error(err)

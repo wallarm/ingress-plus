@@ -10,6 +10,10 @@ daemon off;
 error_log  /var/log/nginx/error.log warn;
 pid        /var/run/nginx.pid;
 
+{{- if .MainSnippets}}
+{{range $value := .MainSnippets}}
+{{$value}}{{end}}
+{{- end}}
 
 events {
     worker_connections  1024;

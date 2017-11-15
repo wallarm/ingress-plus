@@ -106,6 +106,7 @@ type NginxMainConfig struct {
 	ServerNamesHashMaxSize    string
 	LogFormat                 string
 	HealthStatus              bool
+	MainSnippets              []string
 	HTTPSnippets              []string
 	// http://nginx.org/en/docs/http/ngx_http_ssl_module.html
 	SSLProtocols           string
