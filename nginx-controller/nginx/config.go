@@ -11,6 +11,7 @@ type Config struct {
 	HTTP2                         bool
 	RedirectToHTTPS               bool
 	SSLRedirect                   bool
+	MainMainSnippets              []string
 	MainHTTPSnippets              []string
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string

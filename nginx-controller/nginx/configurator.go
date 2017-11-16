@@ -694,6 +694,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) error {
 	cnf.config = config
 	mainCfg := &NginxMainConfig{
+		MainSnippets:              config.MainMainSnippets,
 		HTTPSnippets:              config.MainHTTPSnippets,
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
 		ServerNamesHashMaxSize:    config.MainServerNamesHashMaxSize,
