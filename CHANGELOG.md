@@ -1,5 +1,21 @@
 # Changelog
 
+### 1.1.0
+
+* [221](https://github.com/nginxinc/kubernetes-ingress/pull/221): Add git commit info to the IC log.
+* [220](https://github.com/nginxinc/kubernetes-ingress/pull/220): Update dependencies.
+* [213](https://github.com/nginxinc/kubernetes-ingress/pull/213): Add main snippets to allow Main context customization. Thanks to [Dewen Kong](https://github.com/kongdewen).
+* [211](https://github.com/nginxinc/kubernetes-ingress/pull/211): Minimize the number of configuration reloads when the Ingress controller starts; fix a problem with endpoints updates for Plus.
+* [208](https://github.com/nginxinc/kubernetes-ingress/pull/208): Add worker-shutdown-timeout configmap key. Thanks to [Aleksandr Lysenko](https://github.com/Sarga).
+* [199](https://github.com/nginxinc/kubernetes-ingress/pull/199): Add support for Kubernetes ssl-redirect annotation. Thanks to [Luke Seelenbinder](https://github.com/lseelenbinder).
+* [194](https://github.com/nginxinc/kubernetes-ingress/pull/194) Add keepalive configmap key and annotation.
+* [193](https://github.com/nginxinc/kubernetes-ingress/pull/193): Add worker-cpu-affinity configmap key.
+* [192](https://github.com/nginxinc/kubernetes-ingress/pull/192): Add worker-processes configmap key.
+* [186](https://github.com/nginxinc/kubernetes-ingress/pull/186): Fix hardcoded controller class. Thanks to [Serhii M](https://github.com/SiriusRed).
+* [184](https://github.com/nginxinc/kubernetes-ingress/pull/184): Return a meaningful error when there is no cert and key for the default server.
+* Update NGINX version to 1.13.7.
+* Makefile updates: golang container was updated to 1.9.
+
 ### 1.0.0
 
 * [175](https://github.com/nginxinc/kubernetes-ingress/pull/175): Add support for JWT for NGINX Plus.
