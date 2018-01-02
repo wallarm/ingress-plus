@@ -30,6 +30,7 @@ type Config struct {
 	MainWorkerProcesses           string
 	MainWorkerCPUAffinity         string
 	MainWorkerShutdownTimeout     string
+	MainWorkerConnections         string
 	Keepalive                     int64
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
@@ -63,6 +64,7 @@ func NewDefaultConfig() *Config {
 		MainServerNamesHashMaxSize: "512",
 		ProxyBuffering:             true,
 		MainWorkerProcesses:        "auto",
+		MainWorkerConnections:      "1024",
 		HSTSMaxAge:                 2592000,
 		Ports:                      []int{80},
 		SSLPorts:                   []int{443},

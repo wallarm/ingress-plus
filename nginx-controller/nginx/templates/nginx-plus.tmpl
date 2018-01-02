@@ -17,7 +17,7 @@ pid        /var/run/nginx.pid;
 {{- end}}
 
 events {
-    worker_connections  1024;
+    worker_connections  {{.WorkerConnections}};
 }
 
 

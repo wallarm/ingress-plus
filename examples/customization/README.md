@@ -40,6 +40,7 @@ The table below summarizes some of the options. More options (extensions) are av
 | `nginx.org/listen-ports` | N/A | Configures HTTP ports that NGINX will listen on. | `[80]` |
 | `nginx.org/listen-ports-ssl` | N/A | Configures HTTPS ports that NGINX will listen on. | `[443]` |
 | N/A | `worker-processes` | Sets the value of the [worker_processes](http://nginx.org/en/docs/ngx_core_module.html#worker_processes) directive. | `auto` |
+| N/A | `worker-connections` | Sets the value of the [worker_connections](http://nginx.org/en/docs/ngx_core_module.html#worker_connections) directive. | `1024` |
 | N/A | `worker-cpu-affinity` | Sets the value of the [worker_cpu_affinity](http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity) directive. | N/A |
 | N/A | `worker-shutdown-timeout` | Sets the value of the [worker_shutdown_timeout](http://nginx.org/en/docs/ngx_core_module.html#worker_shutdown_timeout) directive. | N/A |
 | `nginx.org/keepalive` | `keepalive` | Sets the value of the [keepalive](http://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive) directive. Note that `proxy_set_header Connection "";` is added to the generated configuration when the value > 0. | `0` |

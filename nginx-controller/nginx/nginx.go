@@ -119,6 +119,7 @@ type NginxMainConfig struct {
 	WorkerProcesses        string
 	WorkerCPUAffinity      string
 	WorkerShutdownTimeout  string
+	WorkerConnections      string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -146,6 +147,7 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool, ngi
 		ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize,
 		ServerTokens:           NewDefaultConfig().ServerTokens,
 		WorkerProcesses:        NewDefaultConfig().MainWorkerProcesses,
+		WorkerConnections:      NewDefaultConfig().MainWorkerConnections,
 	}
 	ngxc.UpdateMainConfigFile(cfg)
 
