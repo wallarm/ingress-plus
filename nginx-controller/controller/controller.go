@@ -595,6 +595,9 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 		if workerShutdownTimeout, exists := cfgm.Data["worker-shutdown-timeout"]; exists {
 			cfg.MainWorkerShutdownTimeout = workerShutdownTimeout
 		}
+		if workerConnections, exists := cfgm.Data["worker-connections"]; exists {
+			cfg.MainWorkerConnections = workerConnections
+		}
 		if keepalive, exists, err := nginx.GetMapKeyAsInt(cfgm.Data, "keepalive", cfgm); exists {
 			if err != nil {
 				glog.Error(err)
