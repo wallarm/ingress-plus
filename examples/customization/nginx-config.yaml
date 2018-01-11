@@ -48,6 +48,7 @@ data:
     proxy_temp_path  /var/nginx/proxy_temp;
     charset  koi8-r;
   worker-processes: "1" # default is "auto". Sets the value of the worker_processes directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_processes
+  worker-rlimit-nofile: "65536" # No default. Sets the value of the worker_rlimit_nofile directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_rlimit_nofile
   worker-connections: "10240" # default is "1024". Sets the value of the worker_connections directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_connections
   worker-cpu-affinity: "auto" # No default. Sets the value of the worker_cpu_affinity directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity
   worker-shutdown-timeout: "5m" # No default. Sets the value of the worker_shutdown_timeout directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_shutdown_timeout

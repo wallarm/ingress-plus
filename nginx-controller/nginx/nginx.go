@@ -120,6 +120,7 @@ type NginxMainConfig struct {
 	WorkerCPUAffinity      string
 	WorkerShutdownTimeout  string
 	WorkerConnections      string
+	WorkerRlimitNofile      string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.

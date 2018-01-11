@@ -58,6 +58,7 @@ var mainCfg = nginx.NginxMainConfig{
 	WorkerCPUAffinity:      "auto",
 	WorkerShutdownTimeout:  "1m",
 	WorkerConnections:      "1024",
+	WorkerRlimitNofile:     "65536",
 }
 
 func TestIngressForNGINXPlus(t *testing.T) {

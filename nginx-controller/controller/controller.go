@@ -598,6 +598,9 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 		if workerConnections, exists := cfgm.Data["worker-connections"]; exists {
 			cfg.MainWorkerConnections = workerConnections
 		}
+		if workerRlimitNofile, exists := cfgm.Data["worker-rlimit-nofile"]; exists {
+			cfg.MainWorkerRlimitNofile = workerRlimitNofile
+		}
 		if keepalive, exists, err := nginx.GetMapKeyAsInt(cfgm.Data, "keepalive", cfgm); exists {
 			if err != nil {
 				glog.Error(err)

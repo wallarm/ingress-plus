@@ -710,6 +710,7 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 		WorkerCPUAffinity:     config.MainWorkerCPUAffinity,
 		WorkerShutdownTimeout: config.MainWorkerShutdownTimeout,
 		WorkerConnections:     config.MainWorkerConnections,
+		WorkerRlimitNofile:     config.MainWorkerRlimitNofile,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)

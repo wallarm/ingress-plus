@@ -31,6 +31,7 @@ type Config struct {
 	MainWorkerCPUAffinity         string
 	MainWorkerShutdownTimeout     string
 	MainWorkerConnections         string
+	MainWorkerRlimitNofile        string
 	Keepalive                     int64
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
