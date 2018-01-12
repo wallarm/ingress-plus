@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.1.1
+
+* [228](https://github.com/nginxinc/kubernetes-ingress/pull/228): Add worker-rlimit-nofile configmap key. Thanks to [Aleksandr Lysenko](https://github.com/Sarga).
+* [223](https://github.com/nginxinc/kubernetes-ingress/pull/223): Add worker-connections configmap key. Thanks to [Aleksandr Lysenko](https://github.com/Sarga).
+* Update NGINX version to 1.13.8.
+
 ### 1.1.0
 
 * [221](https://github.com/nginxinc/kubernetes-ingress/pull/221): Add git commit info to the IC log.
