@@ -41,7 +41,6 @@ import (
 
 const (
 	ingressClassKey   = "kubernetes.io/ingress.class"
-	nginxIngressClass = "nginx"
 )
 
 // LoadBalancerController watches Kubernetes API and
@@ -1046,13 +1045,10 @@ func (lbc *LoadBalancerController) isNginxIngress(ing *extensions.Ingress) bool 
 		if lbc.useIngressClassOnly {
 			return class == lbc.ingressClass
 		}
-		return class == nginxIngressClass || class == ""
+		return class == lbc.ingressClass || class == ""
 	} else {
-		if lbc.useIngressClassOnly {
-			return false
-		}
+		return ! lbc.useIngressClassOnly
 	}
-	return true
 }
 
 // ValidateSecret validates that the secret follows the TLS Secret format.
