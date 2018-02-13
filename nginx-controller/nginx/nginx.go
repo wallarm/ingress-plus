@@ -25,7 +25,7 @@ type NginxController struct {
 	local                   bool
 	healthStatus            bool
 	nginxConfTemplatePath   string
-	nginxIngressTempatePath string
+	nginxIngressTemplatePath string
 }
 
 // IngressNginxConfig describes an NGINX configuration
@@ -141,7 +141,7 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool, ngi
 		local:                   local,
 		healthStatus:            healthStatus,
 		nginxConfTemplatePath:   nginxConfTemplatePath,
-		nginxIngressTempatePath: nginxIngressTemplatePath,
+		nginxIngressTemplatePath: nginxIngressTemplatePath,
 	}
 
 	cfg := &NginxMainConfig{
@@ -250,7 +250,7 @@ func (nginx *NginxController) getSecretFileName(name string) string {
 }
 
 func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
-	tmpl, err := template.New(nginx.nginxIngressTempatePath).ParseFiles(nginx.nginxIngressTempatePath)
+	tmpl, err := template.New(nginx.nginxIngressTemplatePath).ParseFiles(nginx.nginxIngressTemplatePath)
 	if err != nil {
 		glog.Fatalf("Failed to parse template file: %v", err)
 	}
