@@ -109,7 +109,7 @@ Create a service using a manifest for your cloud provider:
     ```
 * For AWS, run:
     ```
-    $ kubectl apply -f service/loadbalancer-aws.yaml
+    $ kubectl apply -f service/loadbalancer-aws-elb.yaml
     ```
     Kubernetes will allocate a Classic Load Balancer (ELB) in TCP mode with the PROXY protocol enabled to pass the client's information (the IP address and the port). NGINX must be configured to use the PROXY protocol:
     * Add the following keys to the config map file `nginx-config.yaml` from the Step 1 :
