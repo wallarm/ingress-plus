@@ -7,6 +7,7 @@ upstream {{$upstream.Name}} {
 }{{end}}
 
 {{range $server := .Servers}}
+{{if $server.IngressResource}} # *Master*, configured in Ingress Resource: {{$server.IngressResource}}{{end}}
 server {
 	{{range $port := $server.Ports}}
 	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
@@ -53,6 +54,7 @@ server {
 	{{- end}}
 
 	{{range $location := $server.Locations}}
+	{{if $location.IngressResource}} # *Minion*, configured in Ingress Resource: {{$location.IngressResource}}{{end}}
 	location {{$location.Path}} {
 		proxy_http_version 1.1;
 		{{if $location.Websocket}}

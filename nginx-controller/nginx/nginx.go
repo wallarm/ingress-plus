@@ -20,11 +20,11 @@ const jwkSecretFileMode = 0644
 
 // NginxController Updates NGINX configuration, starts and reloads NGINX
 type NginxController struct {
-	nginxConfdPath          string
-	nginxSecretsPath        string
-	local                   bool
-	healthStatus            bool
-	nginxConfTemplatePath   string
+	nginxConfdPath           string
+	nginxSecretsPath         string
+	local                    bool
+	healthStatus             bool
+	nginxConfTemplatePath    string
 	nginxIngressTemplatePath string
 }
 
@@ -81,6 +81,9 @@ type Server struct {
 
 	Ports    []int
 	SSLPorts []int
+
+	// Used for mergeable types
+	IngressResource string
 }
 
 // Location describes an NGINX location
@@ -98,6 +101,9 @@ type Location struct {
 	ProxyBuffers         string
 	ProxyBufferSize      string
 	ProxyMaxTempFileSize string
+
+	// Used for mergeable types
+	IngressResource string
 }
 
 // NginxMainConfig describe the main NGINX configuration file
@@ -120,7 +126,7 @@ type NginxMainConfig struct {
 	WorkerCPUAffinity      string
 	WorkerShutdownTimeout  string
 	WorkerConnections      string
-	WorkerRlimitNofile      string
+	WorkerRlimitNofile     string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -136,11 +142,11 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 // NewNginxController creates a NGINX controller
 func NewNginxController(nginxConfPath string, local bool, healthStatus bool, nginxConfTemplatePath string, nginxIngressTemplatePath string) (*NginxController, error) {
 	ngxc := NginxController{
-		nginxConfdPath:          path.Join(nginxConfPath, "conf.d"),
-		nginxSecretsPath:        path.Join(nginxConfPath, "secrets"),
-		local:                   local,
-		healthStatus:            healthStatus,
-		nginxConfTemplatePath:   nginxConfTemplatePath,
+		nginxConfdPath:           path.Join(nginxConfPath, "conf.d"),
+		nginxSecretsPath:         path.Join(nginxConfPath, "secrets"),
+		local:                    local,
+		healthStatus:             healthStatus,
+		nginxConfTemplatePath:    nginxConfTemplatePath,
 		nginxIngressTemplatePath: nginxIngressTemplatePath,
 	}
 

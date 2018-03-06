@@ -68,6 +68,70 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
 	cnf.ingresses[name] = ingEx
 }
 
+// AddOrUpdateIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types
+func (cnf *Configurator) AddOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) error {
+	cnf.addOrUpdateMergableIngress(mergeableIngs)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when adding or updating ingress %v/%v: %v", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
+	}
+	return nil
+}
+
+func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) {
+	var masterServer Server
+	var locations []Location
+	var upstreams []Upstream
+	var keepalive string
+
+	pems, jwtKeyFileName := cnf.updateSecrets(mergeableIngs.Master)
+	masterNginxCfg := cnf.generateNginxCfg(mergeableIngs.Master, pems, jwtKeyFileName)
+	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+
+	masterServer = masterNginxCfg.Servers[0]
+	masterServer.IngressResource = name
+	masterServer.Locations = []Location{}
+
+	for _, val := range masterNginxCfg.Upstreams {
+		upstreams = append(upstreams, val)
+	}
+	if masterNginxCfg.Keepalive != "" {
+		keepalive = masterNginxCfg.Keepalive
+	}
+
+	minions := mergeableIngs.Minions
+	for _, minion := range minions {
+		pems, jwtKeyFileName := cnf.updateSecrets(minion)
+		nginxCfg := cnf.generateNginxCfg(minion, pems, jwtKeyFileName)
+
+		// Replace all minion annotations with master annotations
+		minion.Ingress.Annotations = mergeableIngs.Master.Ingress.Annotations
+
+		for _, server := range nginxCfg.Servers {
+			for _, loc := range server.Locations {
+				if loc.Path != "/" {
+					loc.IngressResource = objectMetaToFileName(&minion.Ingress.ObjectMeta)
+					locations = append(locations, loc)
+				}
+			}
+		}
+		for _, val := range nginxCfg.Upstreams {
+			upstreams = append(upstreams, val)
+		}
+	}
+
+	masterServer.Locations = locations
+
+	nginxCfg := IngressNginxConfig{
+		Servers:   []Server{masterServer},
+		Upstreams: upstreams,
+		Keepalive: keepalive,
+	}
+
+	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
+	cnf.ingresses[name] = mergeableIngs.Master
+}
+
 func (cnf *Configurator) updateSecrets(ingEx *IngressEx) (map[string]string, string) {
 	pems := make(map[string]string)
 
@@ -180,6 +244,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		}
 
 		server.Locations = locations
+
 		servers = append(servers, server)
 	}
 
@@ -660,6 +725,17 @@ func (cnf *Configurator) UpdateEndpoints(ingEx *IngressEx) error {
 	return nil
 }
 
+// UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource
+func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngs *MergeableIngresses) error {
+	cnf.addOrUpdateMergableIngress(mergeableIngs)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
+	}
+
+	return nil
+}
+
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
@@ -691,7 +767,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 }
 
 // UpdateConfig updates NGINX Configuration parameters
-func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) error {
+func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, mergeableIngs map[string]*MergeableIngresses) error {
 	cnf.config = config
 	mainCfg := &NginxMainConfig{
 		MainSnippets:              config.MainMainSnippets,
@@ -710,13 +786,17 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx) erro
 		WorkerCPUAffinity:     config.MainWorkerCPUAffinity,
 		WorkerShutdownTimeout: config.MainWorkerShutdownTimeout,
 		WorkerConnections:     config.MainWorkerConnections,
-		WorkerRlimitNofile:     config.MainWorkerRlimitNofile,
+		WorkerRlimitNofile:    config.MainWorkerRlimitNofile,
 	}
 
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
 
 	for _, ingEx := range ingExes {
 		cnf.addOrUpdateIngress(ingEx)
+	}
+
+	for _, mergeableIng := range mergeableIngs {
+		cnf.addOrUpdateMergableIngress(mergeableIng)
 	}
 
 	if err := cnf.nginx.Reload(); err != nil {
