@@ -1,0 +1,54 @@
+{{- if eq .Values.controller.kind "daemonset" }}
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.controller.name }}
+spec:
+  selector: 
+    matchLabels: 
+      app: nginx-ingress
+  template:
+    metadata:
+      labels:
+        app: nginx-ingress
+    spec:
+{{- if .Values.controller.serviceAccountName }}
+      serviceAccountName: {{ .Values.controller.serviceAccountName }}
+{{- end }}
+      terminationGracePeriodSeconds: {{ .Values.controller.terminationGracePeriodSeconds | default 30 }}
+{{- if .Values.controller.nodeselector }}
+      nodeSelector:
+{{ toYaml .Values.controller.nodeSelector | indent 8 }}
+{{- end }}
+{{- if eq .Values.controller.tolerations "icp" }}
+      tolerations:
+      - key: "dedicated"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+{{- end }}
+      hostNetwork: {{ .Values.controller.hostNetwork }}
+      containers:
+      - name: {{ .Values.controller.name }}
+        image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+        imagePullPolicy: "{{ .Values.controller.image.pullPolicy }}"
+        ports:
+        - name: http
+          containerPort: 80
+          hostPort: 80
+        - name: https
+          containerPort: 443
+          hostPort: 443
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        args:
+{{- if eq .Values.controller.nginxplus "true" }}
+          - -nginx-plus
+{{- end }}
+          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+          - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+{{- end }}

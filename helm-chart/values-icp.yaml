@@ -1,0 +1,18 @@
+controller:
+  name: nginx-ingress
+  kind: daemonset
+  nginxplus: "true"
+  hostNetwork: "false"
+  image:
+    repository: mycluster.icp:8500/kube-system/nginx-plus-ingress
+    tag: "1.1.1"
+    pullPolicy: IfNotPresent
+  defaultTLS:
+    cert:
+    key:
+  config:
+    entries: {}
+  nodeselector: { beta.kubernetes.io/arch: "amd64",
+                   proxy: "true" }
+  terminationGracePeriodSeconds: 60
+  tolerations: "icp"

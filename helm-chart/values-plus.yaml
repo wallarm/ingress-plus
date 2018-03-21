@@ -1,0 +1,17 @@
+controller:
+  name: nginx-ingress
+  kind: daemonset
+  nginxplus: "true"
+  hostNetwork: "false"
+  image:
+    repository: <repo_path>
+    tag: ""
+    pullPolicy: IfNotPresent
+  defaultTLS:
+    cert:
+    key:
+  config:
+    entries: {}
+  nodeselector: {}
+  terminationGracePeriodSeconds: 30
+  tolerations: ""
