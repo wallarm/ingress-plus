@@ -1,0 +1,17 @@
+controller:
+  name: nginx-ingress
+  kind: deployment
+  nginxplus: "false"
+  hostNetwork: "false"
+  image:
+    repository: nginxdemos/nginx-ingress
+    tag: "1.1.1"
+    pullPolicy: IfNotPresent
+  config:
+    entries: {}
+  defaultTLS:
+    cert:
+    key:
+  nodeselector: {}
+  terminationGracePeriodSeconds: 30
+  tolerations: ""
