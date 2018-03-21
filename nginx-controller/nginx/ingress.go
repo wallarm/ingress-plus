@@ -13,3 +13,8 @@ type IngressEx struct {
 	JWTKey     *api_v1.Secret
 	Endpoints  map[string][]string
 }
+
+type MergeableIngresses struct {
+	Master *IngressEx
+	Minions []*IngressEx
+}
