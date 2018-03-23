@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -59,5 +60,88 @@ func TestParseStickyServiceInvalidFormat(t *testing.T) {
 	_, _, err := parseStickyService(stickyService)
 	if err == nil {
 		t.Errorf("parseStickyService(%s) should return error, got nil", stickyService)
+	}
+}
+
+func TestFilterMasterAnnotations(t *testing.T) {
+	masterAnnotations := map[string]string{
+		"nginx.org/rewrites":                "serviceName=service1 rewrite=rewrite1",
+		"nginx.org/ssl-services":            "service1",
+		"nginx.org/hsts":                    "True",
+		"nginx.org/hsts-max-age":            "2700000",
+		"nginx.org/hsts-include-subdomains": "True",
+	}
+	removedAnnotations := filterMasterAnnotations(masterAnnotations)
+
+	expectedfilteredMasterAnnotations := map[string]string{
+		"nginx.org/hsts":                    "True",
+		"nginx.org/hsts-max-age":            "2700000",
+		"nginx.org/hsts-include-subdomains": "True",
+	}
+	expectedRemovedAnnotations := []string{
+		"nginx.org/rewrites",
+		"nginx.org/ssl-services",
+	}
+
+	if !reflect.DeepEqual(expectedfilteredMasterAnnotations, masterAnnotations) {
+		t.Errorf("filterMasterAnnotations returned %v, but expected %v", masterAnnotations, expectedfilteredMasterAnnotations)
+	}
+	if !reflect.DeepEqual(expectedRemovedAnnotations, removedAnnotations) {
+		t.Errorf("filterMasterAnnotations returned %v, but expected %v", removedAnnotations, expectedRemovedAnnotations)
+	}
+}
+
+func TestFilterMinionAnnotations(t *testing.T) {
+	minionAnnotations := map[string]string{
+		"nginx.org/rewrites":                "serviceName=service1 rewrite=rewrite1",
+		"nginx.org/ssl-services":            "service1",
+		"nginx.org/hsts":                    "True",
+		"nginx.org/hsts-max-age":            "2700000",
+		"nginx.org/hsts-include-subdomains": "True",
+	}
+	removedAnnotations := filterMinionAnnotations(minionAnnotations)
+
+	expectedfilteredMinionAnnotations := map[string]string{
+		"nginx.org/rewrites":     "serviceName=service1 rewrite=rewrite1",
+		"nginx.org/ssl-services": "service1",
+	}
+	expectedRemovedAnnotations := []string{
+		"nginx.org/hsts",
+		"nginx.org/hsts-max-age",
+		"nginx.org/hsts-include-subdomains",
+	}
+
+	if !reflect.DeepEqual(expectedfilteredMinionAnnotations, minionAnnotations) {
+		t.Errorf("filterMinionAnnotations returned %v, but expected %v", minionAnnotations, expectedfilteredMinionAnnotations)
+	}
+	if !reflect.DeepEqual(expectedRemovedAnnotations, removedAnnotations) {
+		t.Errorf("filterMinionAnnotations returned %v, but expected %v", removedAnnotations, expectedRemovedAnnotations)
+	}
+}
+
+func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
+	masterAnnotations := map[string]string{
+		"nginx.org/proxy-buffering":       "True",
+		"nginx.org/proxy-buffers":         "2",
+		"nginx.org/proxy-buffer-size":     "8k",
+		"nginx.org/hsts":                  "True",
+		"nginx.org/hsts-max-age":          "2700000",
+		"nginx.org/proxy-connect-timeout": "50s",
+	}
+	minionAnnotations := map[string]string{
+		"nginx.org/client-max-body-size":  "2m",
+		"nginx.org/proxy-connect-timeout": "20s",
+	}
+	mergeMasterAnnotationsIntoMinion(minionAnnotations, masterAnnotations)
+
+	expectedMergedAnnotations := map[string]string{
+		"nginx.org/proxy-buffering":       "True",
+		"nginx.org/proxy-buffers":         "2",
+		"nginx.org/proxy-buffer-size":     "8k",
+		"nginx.org/client-max-body-size":  "2m",
+		"nginx.org/proxy-connect-timeout": "20s",
+	}
+	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
+		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
 	}
 }

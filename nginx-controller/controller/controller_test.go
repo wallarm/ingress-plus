@@ -401,6 +401,65 @@ func TestGetMinionsForMasterInvalidMinion(t *testing.T) {
 	}
 }
 
+func TestGetMinionsForMasterConflictingPaths(t *testing.T) {
+	cafeMaster, coffeeMinion, teaMinion, lbc := getMergableDefaults()
+
+	// Makes sure there is an empty path assigned to a master, to allow for lbc.createIngress() to pass
+	cafeMaster.Spec.Rules[0].HTTP = &extensions.HTTPIngressRuleValue{
+		Paths: []extensions.HTTPIngressPath{},
+	}
+
+	coffeeMinion.Spec.Rules[0].HTTP.Paths = append(coffeeMinion.Spec.Rules[0].HTTP.Paths, extensions.HTTPIngressPath{
+		Path: "/tea",
+		Backend: extensions.IngressBackend{
+			ServiceName: "tea-svc",
+			ServicePort: intstr.IntOrString{
+				StrVal: "80",
+			},
+		},
+	})
+
+	lbc.ingLister.Add(&cafeMaster)
+	lbc.ingLister.Add(&coffeeMinion)
+	lbc.ingLister.Add(&teaMinion)
+
+	cafeMasterIngEx, err := lbc.createIngress(&cafeMaster)
+	if err != nil {
+		t.Errorf("Error creating %s(Master): %v", cafeMaster.Name, err)
+	}
+
+	minions, err := lbc.getMinionsForMaster(cafeMasterIngEx)
+	if err != nil {
+		t.Errorf("Error getting Minions for %s(Master): %v", cafeMaster.Name, err)
+	}
+
+	if len(minions) != 2 {
+		t.Errorf("Invalid amount of minions: %+v", minions)
+	}
+
+	coffeePathCount := 0
+	teaPathCount := 0
+	for _, minion := range minions {
+		for _, path := range minion.Ingress.Spec.Rules[0].HTTP.Paths {
+			if path.Path == "/coffee" {
+				coffeePathCount++
+			} else if path.Path == "/tea" {
+				teaPathCount++
+			} else {
+				t.Errorf("Invalid Path %s exists", path.Path)
+			}
+		}
+	}
+
+	if coffeePathCount != 1 {
+		t.Errorf("Invalid amount of coffee paths, amount %d", coffeePathCount)
+	}
+
+	if teaPathCount != 1 {
+		t.Errorf("Invalid amount of tea paths, amount %d", teaPathCount)
+	}
+}
+
 func getMergableDefaults() (cafeMaster, coffeeMinion, teaMinion extensions.Ingress, lbc LoadBalancerController) {
 	cafeMaster = extensions.Ingress{
 		TypeMeta: meta_v1.TypeMeta{},
