@@ -11,6 +11,11 @@ type NginxAPIController struct {
 	local  bool
 }
 
+type ServerConfig struct {
+	MaxFails    int64
+	FailTimeout string
+}
+
 func NewNginxAPIController(httpClient *http.Client, endpoint string, local bool) (*NginxAPIController, error) {
 	client, err := NewNginxClient(httpClient, endpoint)
 	if !local && err != nil {
@@ -20,12 +25,22 @@ func NewNginxAPIController(httpClient *http.Client, endpoint string, local bool)
 	return nginx, nil
 }
 
-func (nginx *NginxAPIController) UpdateServers(upstream string, servers []string) error {
+func (nginx *NginxAPIController) UpdateServers(upstream string, servers []string, config ServerConfig) error {
 	if nginx.local {
 		glog.V(3).Infof("Updating endpoints of %v: %v\n", upstream, servers)
 		return nil
 	}
-	added, removed, err := nginx.client.UpdateHTTPServers(upstream, servers)
+
+	var upsServers []UpstreamServer
+	for _, s := range servers {
+		upsServers = append(upsServers, UpstreamServer{
+			Server:      s,
+			MaxFails:    config.MaxFails,
+			FailTimeout: config.FailTimeout,
+		})
+	}
+
+	added, removed, err := nginx.client.UpdateHTTPServers(upstream, upsServers)
 	if err != nil {
 		glog.V(3).Infof("Couldn't update servers of %v upstream: %v", upstream, err)
 		return err

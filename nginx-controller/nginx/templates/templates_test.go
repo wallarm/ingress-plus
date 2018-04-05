@@ -16,7 +16,12 @@ const nginxPlusMainTmpl = "nginx-plus.tmpl"
 var testUps = nginx.Upstream{
 	Name: "test",
 	UpstreamServers: []nginx.UpstreamServer{
-		{"127.0.0.1", "8181"},
+		{
+			Address:     "127.0.0.1",
+			Port:        "8181",
+			MaxFails:    0,
+			FailTimeout: "1s",
+		},
 	},
 }
 

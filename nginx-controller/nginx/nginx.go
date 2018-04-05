@@ -45,8 +45,10 @@ type Upstream struct {
 
 // UpstreamServer describes a server in an NGINX upstream
 type UpstreamServer struct {
-	Address string
-	Port    string
+	Address     string
+	Port        string
+	MaxFails    int64
+	FailTimeout string
 }
 
 // Server describes an NGINX server
@@ -134,8 +136,14 @@ type NginxMainConfig struct {
 // We use it for services that have no endpoints
 func NewUpstreamWithDefaultServer(name string) Upstream {
 	return Upstream{
-		Name:            name,
-		UpstreamServers: []UpstreamServer{UpstreamServer{Address: "127.0.0.1", Port: "8181"}},
+		Name: name,
+		UpstreamServers: []UpstreamServer{
+			UpstreamServer{
+				Address:     "127.0.0.1",
+				Port:        "8181",
+				MaxFails:    1,
+				FailTimeout: "10s",
+			}},
 	}
 }
 

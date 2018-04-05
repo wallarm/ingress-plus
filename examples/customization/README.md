@@ -52,6 +52,8 @@ The table below summarizes all of the options. For some of them, there are examp
 | `nginx.org/rewrites` | N/A | Configures URI rewriting. | N/A | [Rewrites Support](../rewrites). |
 | `nginx.org/ssl-services` | N/A | Enables HTTPS when connecting to the endpoints of services. | N/A | [SSL Services Support](../ssl-services). |
 | `nginx.org/websocket-services` | N/A | Enables WebSocket for services. | N/A | [WebSocket support](../websocket). |
+| `nginx.org/max-fails` | `max-fails` | Sets the value of the [max_fails](https://nginx.org/en/docs/http/ngx_http_upstream_module.html#max_fails) parameter of the `server` directive. | `1` | |
+| `nginx.org/fail-timeout` | `fail-timeout` | Sets the value of the [fail_timeout](https://nginx.org/en/docs/http/ngx_http_upstream_module.html#fail_timeout) parameter of the `server` directive. | `10s` | |
 | `nginx.com/sticky-cookie-services` | N/A | Configures session persistence. | N/A | [Session Persistence](../session-persistence). |
 | `nginx.com/jwt-key` | N/A |  Specifies a Secret resource with keys for validating JSON Web Tokens (JWTs). | N/A | [Support for JSON Web Tokens (JWTs)](../jwt). |
 | `nginx.com/jwt-realm` | N/A | Specifies a realm. | N/A | [Support for JSON Web Tokens (JWTs)](../jwt). |

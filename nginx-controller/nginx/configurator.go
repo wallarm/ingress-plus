@@ -169,7 +169,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace, spServices[ingEx.Ingress.Spec.Backend.ServiceName], ingCfg.LBMethod)
+		upstream := cnf.createUpstream(ingEx, name, ingEx.Ingress.Spec.Backend, ingEx.Ingress.Namespace, spServices[ingEx.Ingress.Spec.Backend.ServiceName], &ingCfg)
 		upstreams[name] = upstream
 	}
 
@@ -225,7 +225,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName], ingCfg.LBMethod)
+				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName], &ingCfg)
 				upstreams[upsName] = upstream
 			}
 
@@ -416,6 +416,17 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 		}
 	}
 
+	if maxFails, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/max-fails", ingEx.Ingress); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			ingCfg.MaxFails = maxFails
+		}
+	}
+	if failTimeout, exists := ingEx.Ingress.Annotations["nginx.org/fail-timeout"]; exists {
+		ingCfg.FailTimeout = failTimeout
+	}
+
 	return ingCfg
 }
 
@@ -577,7 +588,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 	return loc
 }
 
-func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string, lbMethod string) Upstream {
+func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *extensions.IngressBackend, namespace string, stickyCookie string, cfg *Config) Upstream {
 	var ups Upstream
 
 	if cnf.isPlus() {
@@ -591,13 +602,18 @@ func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *
 		var upsServers []UpstreamServer
 		for _, endp := range endps {
 			addressport := strings.Split(endp, ":")
-			upsServers = append(upsServers, UpstreamServer{addressport[0], addressport[1]})
+			upsServers = append(upsServers, UpstreamServer{
+				Address:     addressport[0],
+				Port:        addressport[1],
+				MaxFails:    cfg.MaxFails,
+				FailTimeout: cfg.FailTimeout,
+			})
 		}
 		if len(upsServers) > 0 {
 			ups.UpstreamServers = upsServers
 		}
 	}
-	ups.LBMethod = lbMethod
+	ups.LBMethod = cfg.LBMethod
 	return ups
 }
 
@@ -737,11 +753,18 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngs *Mergeabl
 }
 
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
+	ingCfg := cnf.createConfig(ingEx)
+
+	cfg := plus.ServerConfig{
+		MaxFails:    ingCfg.MaxFails,
+		FailTimeout: ingCfg.FailTimeout,
+	}
+
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
 		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.Backend.ServiceName+ingEx.Ingress.Spec.Backend.ServicePort.String()]
 		if exists {
-			err := cnf.nginxAPI.UpdateServers(name, endps)
+			err := cnf.nginxAPI.UpdateServers(name, endps, cfg)
 			if err != nil {
 				return fmt.Errorf("Couldn't update the endpoints for %v: %v", name, err)
 			}
@@ -755,7 +778,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			name := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 			endps, exists := ingEx.Endpoints[path.Backend.ServiceName+path.Backend.ServicePort.String()]
 			if exists {
-				err := cnf.nginxAPI.UpdateServers(name, endps)
+				err := cnf.nginxAPI.UpdateServers(name, endps, cfg)
 				if err != nil {
 					return fmt.Errorf("Couldn't update the endpoints for %v: %v", name, err)
 				}
