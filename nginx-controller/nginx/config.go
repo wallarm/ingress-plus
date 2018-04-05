@@ -33,6 +33,8 @@ type Config struct {
 	MainWorkerConnections         string
 	MainWorkerRlimitNofile        string
 	Keepalive                     int64
+	MaxFails                      int64
+	FailTimeout                   string
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string
@@ -69,5 +71,7 @@ func NewDefaultConfig() *Config {
 		HSTSMaxAge:                 2592000,
 		Ports:                      []int{80},
 		SSLPorts:                   []int{443},
+		MaxFails:                   1,
+		FailTimeout:                "10s",
 	}
 }

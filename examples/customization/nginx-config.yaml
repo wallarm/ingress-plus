@@ -2,6 +2,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: nginx-config
+  namespace: nginx-ingress
 data:
   proxy-connect-timeout: "10s" # default is "60s". See http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_connect_timeout
   proxy-read-timeout: "10s" # default is "60s". See http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout
@@ -53,3 +54,5 @@ data:
   worker-cpu-affinity: "auto" # No default. Sets the value of the worker_cpu_affinity directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_cpu_affinity
   worker-shutdown-timeout: "5m" # No default. Sets the value of the worker_shutdown_timeout directive. See http://nginx.org/en/docs/ngx_core_module.html#worker_shutdown_timeout
   keepalive: "32" # default is 0. When > 0, sets the value of the keepalive directive and adds 'proxy_set_header Connection "";' to a location block. See http://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive
+  max-fails: "0" # default is 1. Sets the value of the max_fails parameter of the `server` directive. See https://nginx.org/en/docs/http/ngx_http_upstream_module.html#max_fails
+  fail-timeout: "5s" # default is 10s. Sets the value of the fail_timeout parameter of the `server` directive. See https://nginx.org/en/docs/http/ngx_http_upstream_module.html#fail_timeout

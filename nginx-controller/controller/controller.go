@@ -659,6 +659,16 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 				cfg.Keepalive = keepalive
 			}
 		}
+		if maxFails, exists, err := nginx.GetMapKeyAsInt(cfgm.Data, "max-fails", cfgm); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				cfg.MaxFails = maxFails
+			}
+		}
+		if failTimeout, exists := cfgm.Data["fail-timeout"]; exists {
+			cfg.FailTimeout = failTimeout
+		}
 	}
 
 	mergeableIngresses := make(map[string]*nginx.MergeableIngresses)
