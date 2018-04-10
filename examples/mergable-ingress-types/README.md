@@ -10,9 +10,32 @@ host level, which includes the TLS configuration, and any annotations which will
 can only be one ingress resource on a unique host that contains the master value. Paths cannot be part of the
 ingress resource.
 
+Masters cannot contain the following annotations:
+* nginx.org/rewrites
+* nginx.org/ssl-services
+* nginx.org/websocket-services
+* nginx.com/sticky-cookie-services
+
 A Minion is declared using `nginx.org/mergible-ingress-type: minion`. A Minion will be used to append different
-locations to an ingress resource with the Master value. The annotations of minions are replaced with the annotations of
-their master. TLS configurations are not allowed. There can be multiple minions which must have the same host as the master.
+locations to an ingress resource with the Master value. TLS configurations are not allowed. Multiple minions can be
+applied per master as long as they do not have conflicting paths. If a conflicting path is present then the path defined
+on the oldest minion will be used.
+
+Minions cannot contain the following annotations:
+* nginx.org/proxy-hide-headers
+* nginx.org/proxy-pass-headers
+* nginx.org/redirect-to-https
+* ingress.kubernetes.io/ssl-redirect
+* nginx.org/hsts
+* nginx.org/hsts-max-age
+* nginx.org/hsts-include-subdomains
+* nginx.org/server-tokens
+* nginx.org/listen-ports
+* nginx.org/listen-ports-ssl
+* nginx.com/jwt-key
+* nginx.com/jwt-realm
+* nginx.com/jwt-token
+* nginx.com/jwt-login-url
 
 Note: Ingress Resources with more than one host cannot be used.
 

@@ -83,6 +83,13 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 	var locations []Location
 	var upstreams []Upstream
 	var keepalive string
+	var removedAnnotations []string
+
+	removedAnnotations = filterMasterAnnotations(mergeableIngs.Master.Ingress.Annotations)
+	if len(removedAnnotations) != 0 {
+		glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.com/mergeable-ingress-type' set to 'master' cannot contain the '%v' annotation(s). They will be ignored",
+			mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, strings.Join(removedAnnotations, ","))
+	}
 
 	pems, jwtKeyFileName := cnf.updateSecrets(mergeableIngs.Master)
 	masterNginxCfg := cnf.generateNginxCfg(mergeableIngs.Master, pems, jwtKeyFileName)
@@ -101,20 +108,28 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 
 	minions := mergeableIngs.Minions
 	for _, minion := range minions {
+		// Remove the default backend so that "/" will not be generated
+		minion.Ingress.Spec.Backend = nil
+
+		// Add acceptable master annotations to minion
+		mergeMasterAnnotationsIntoMinion(minion.Ingress.Annotations, mergeableIngs.Master.Ingress.Annotations)
+
+		removedAnnotations = filterMinionAnnotations(minion.Ingress.Annotations)
+		if len(removedAnnotations) != 0 {
+			glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.com/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
+				minion.Ingress.Namespace, minion.Ingress.Name, strings.Join(removedAnnotations, ","))
+		}
+
 		pems, jwtKeyFileName := cnf.updateSecrets(minion)
 		nginxCfg := cnf.generateNginxCfg(minion, pems, jwtKeyFileName)
 
-		// Replace all minion annotations with master annotations
-		minion.Ingress.Annotations = mergeableIngs.Master.Ingress.Annotations
-
 		for _, server := range nginxCfg.Servers {
 			for _, loc := range server.Locations {
-				if loc.Path != "/" {
-					loc.IngressResource = objectMetaToFileName(&minion.Ingress.ObjectMeta)
-					locations = append(locations, loc)
-				}
+				loc.IngressResource = objectMetaToFileName(&minion.Ingress.ObjectMeta)
+				locations = append(locations, loc)
 			}
 		}
+
 		for _, val := range nginxCfg.Upstreams {
 			upstreams = append(upstreams, val)
 		}
@@ -787,6 +802,48 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	}
 
 	return nil
+}
+
+func filterMasterAnnotations(annotations map[string]string) []string {
+	var removedAnnotations []string
+
+	for _, blacklistAnn := range masterBlacklist {
+		if _, ok := annotations[blacklistAnn]; ok {
+			removedAnnotations = append(removedAnnotations, blacklistAnn)
+			delete(annotations, blacklistAnn)
+		}
+	}
+
+	return removedAnnotations
+}
+
+func filterMinionAnnotations(annotations map[string]string) []string {
+	var removedAnnotations []string
+
+	for _, blacklistAnn := range minionBlacklist {
+		if _, ok := annotations[blacklistAnn]; ok {
+			removedAnnotations = append(removedAnnotations, blacklistAnn)
+			delete(annotations, blacklistAnn)
+		}
+	}
+
+	return removedAnnotations
+}
+
+func mergeMasterAnnotationsIntoMinion(minionAnnotations map[string]string, masterAnnotations map[string]string) {
+	for key, val := range masterAnnotations {
+		isBlacklisted := false
+		if _, ok := minionAnnotations[key]; !ok {
+			for _, blacklistAnn := range minionBlacklist {
+				if blacklistAnn == key {
+					isBlacklisted = true
+				}
+			}
+			if !isBlacklisted {
+				minionAnnotations[key] = val
+			}
+		}
+	}
 }
 
 // UpdateConfig updates NGINX Configuration parameters

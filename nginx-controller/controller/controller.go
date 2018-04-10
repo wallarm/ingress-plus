@@ -37,6 +37,7 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sort"
 )
 
 const (
@@ -1213,7 +1214,14 @@ func (lbc *LoadBalancerController) getMinionsForMaster(master *nginx.IngressEx) 
 		return []*nginx.IngressEx{}, err
 	}
 
+	// ingresses are sorted by creation time
+	sort.Slice(ings.Items[:], func(i, j int) bool {
+		return ings.Items[i].CreationTimestamp.Time.UnixNano() < ings.Items[j].CreationTimestamp.Time.UnixNano()
+	})
+
 	var minions []*nginx.IngressEx
+	var minionPaths = make(map[string]*extensions.Ingress)
+
 	for i, _ := range ings.Items {
 		if !lbc.isNginxIngress(&ings.Items[i]) {
 			continue
@@ -1232,6 +1240,20 @@ func (lbc *LoadBalancerController) getMinionsForMaster(master *nginx.IngressEx) 
 			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'minion' must contain a Path", ings.Items[i].Namespace, ings.Items[i].Name)
 			continue
 		}
+
+		uniquePaths := []extensions.HTTPIngressPath{}
+		for _, path := range ings.Items[i].Spec.Rules[0].HTTP.Paths {
+			if val, ok := minionPaths[path.Path]; ok {
+				glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'minion' cannot contain the same path as another ingress resource, %v/%v.",
+					ings.Items[i].Namespace, ings.Items[i].Name, val.Namespace, val.Name)
+				glog.Errorf("Path %s for Ingress Resource %v/%v will be ignored", path.Path, val.Namespace, val.Name)
+			} else {
+				minionPaths[path.Path] = &ings.Items[i]
+				uniquePaths = append(uniquePaths, path)
+			}
+		}
+		ings.Items[i].Spec.Rules[0].HTTP.Paths = uniquePaths
+
 		ingEx, err := lbc.createIngress(&ings.Items[i])
 		if err != nil {
 			glog.Errorf("Error creating ingress resource %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
@@ -1243,6 +1265,7 @@ func (lbc *LoadBalancerController) getMinionsForMaster(master *nginx.IngressEx) 
 		}
 		minions = append(minions, ingEx)
 	}
+
 	return minions, nil
 }
 
