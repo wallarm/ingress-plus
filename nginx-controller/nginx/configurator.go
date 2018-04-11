@@ -87,7 +87,7 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 
 	removedAnnotations = filterMasterAnnotations(mergeableIngs.Master.Ingress.Annotations)
 	if len(removedAnnotations) != 0 {
-		glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.com/mergeable-ingress-type' set to 'master' cannot contain the '%v' annotation(s). They will be ignored",
+		glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'master' cannot contain the '%v' annotation(s). They will be ignored",
 			mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, strings.Join(removedAnnotations, ","))
 	}
 
@@ -116,7 +116,7 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 
 		removedAnnotations = filterMinionAnnotations(minion.Ingress.Annotations)
 		if len(removedAnnotations) != 0 {
-			glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.com/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
+			glog.Errorf("Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
 				minion.Ingress.Namespace, minion.Ingress.Name, strings.Join(removedAnnotations, ","))
 		}
 
@@ -807,10 +807,10 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 func filterMasterAnnotations(annotations map[string]string) []string {
 	var removedAnnotations []string
 
-	for _, blacklistAnn := range masterBlacklist {
-		if _, ok := annotations[blacklistAnn]; ok {
-			removedAnnotations = append(removedAnnotations, blacklistAnn)
-			delete(annotations, blacklistAnn)
+	for key, _ := range annotations {
+		if _, ok := masterBlacklist[key]; ok {
+			removedAnnotations = append(removedAnnotations, key)
+			delete(annotations, key)
 		}
 	}
 
@@ -820,10 +820,10 @@ func filterMasterAnnotations(annotations map[string]string) []string {
 func filterMinionAnnotations(annotations map[string]string) []string {
 	var removedAnnotations []string
 
-	for _, blacklistAnn := range minionBlacklist {
-		if _, ok := annotations[blacklistAnn]; ok {
-			removedAnnotations = append(removedAnnotations, blacklistAnn)
-			delete(annotations, blacklistAnn)
+	for key, _ := range annotations {
+		if _, ok := minionBlacklist[key]; ok {
+			removedAnnotations = append(removedAnnotations, key)
+			delete(annotations, key)
 		}
 	}
 
@@ -832,14 +832,8 @@ func filterMinionAnnotations(annotations map[string]string) []string {
 
 func mergeMasterAnnotationsIntoMinion(minionAnnotations map[string]string, masterAnnotations map[string]string) {
 	for key, val := range masterAnnotations {
-		isBlacklisted := false
 		if _, ok := minionAnnotations[key]; !ok {
-			for _, blacklistAnn := range minionBlacklist {
-				if blacklistAnn == key {
-					isBlacklisted = true
-				}
-			}
-			if !isBlacklisted {
+			if _, ok := minionBlacklist[key]; !ok {
 				minionAnnotations[key] = val
 			}
 		}

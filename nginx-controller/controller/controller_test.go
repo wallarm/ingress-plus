@@ -161,21 +161,21 @@ func TestCreateMergableIngresses(t *testing.T) {
 	lbc.ingLister.Add(&coffeeMinion)
 	lbc.ingLister.Add(&teaMinion)
 
-	mergableIngresses, err := lbc.createMergableIngresses(&cafeMaster)
+	mergeableIngresses, err := lbc.createMergableIngresses(&cafeMaster)
 	if err != nil {
 		t.Errorf("Error creating Mergable Ingresses: %v", err)
 	}
-	if mergableIngresses.Master.Ingress.Name != cafeMaster.Name && mergableIngresses.Master.Ingress.Namespace != cafeMaster.Namespace {
+	if mergeableIngresses.Master.Ingress.Name != cafeMaster.Name && mergeableIngresses.Master.Ingress.Namespace != cafeMaster.Namespace {
 		t.Errorf("Master %s not set properly", cafeMaster.Name)
 	}
 
-	if len(mergableIngresses.Minions) != 2 {
-		t.Errorf("Invalid amount of minions in mergableIngresses: %v", mergableIngresses.Minions)
+	if len(mergeableIngresses.Minions) != 2 {
+		t.Errorf("Invalid amount of minions in mergeableIngresses: %v", mergeableIngresses.Minions)
 	}
 
 	coffeeCount := 0
 	teaCount := 0
-	for _, minion := range mergableIngresses.Minions {
+	for _, minion := range mergeableIngresses.Minions {
 		if minion.Ingress.Name == coffeeMinion.Name {
 			coffeeCount++
 		} else if minion.Ingress.Name == teaMinion.Name {
@@ -220,7 +220,7 @@ func TestCreateMergableIngressesInvalidMaster(t *testing.T) {
 	}
 	lbc.ingLister.Add(&cafeMaster)
 
-	expected := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'master' cannot contain Paths", cafeMaster.Namespace, cafeMaster.Name)
+	expected := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation set to 'master' cannot contain Paths", cafeMaster.Namespace, cafeMaster.Name)
 	_, err := lbc.createMergableIngresses(&cafeMaster)
 	if !reflect.DeepEqual(err, expected) {
 		t.Errorf("Error Validating the Ingress Resource: \n Expected: %s \n Obtained: %s", expected, err)
@@ -467,8 +467,8 @@ func getMergableDefaults() (cafeMaster, coffeeMinion, teaMinion extensions.Ingre
 			Name:      "cafe-master",
 			Namespace: "default",
 			Annotations: map[string]string{
-				"kubernetes.io/ingress.class":     "nginx",
-				"nginx.org/mergible-ingress-type": "master",
+				"kubernetes.io/ingress.class":      "nginx",
+				"nginx.org/mergeable-ingress-type": "master",
 			},
 		},
 		Spec: extensions.IngressSpec{
@@ -486,8 +486,8 @@ func getMergableDefaults() (cafeMaster, coffeeMinion, teaMinion extensions.Ingre
 			Name:      "coffee-minion",
 			Namespace: "default",
 			Annotations: map[string]string{
-				"kubernetes.io/ingress.class":     "nginx",
-				"nginx.org/mergible-ingress-type": "minion",
+				"kubernetes.io/ingress.class":      "nginx",
+				"nginx.org/mergeable-ingress-type": "minion",
 			},
 		},
 		Spec: extensions.IngressSpec{
@@ -520,8 +520,8 @@ func getMergableDefaults() (cafeMaster, coffeeMinion, teaMinion extensions.Ingre
 			Name:      "tea-minion",
 			Namespace: "default",
 			Annotations: map[string]string{
-				"kubernetes.io/ingress.class":     "nginx",
-				"nginx.org/mergible-ingress-type": "minion",
+				"kubernetes.io/ingress.class":      "nginx",
+				"nginx.org/mergeable-ingress-type": "minion",
 			},
 		},
 		Spec: extensions.IngressSpec{
