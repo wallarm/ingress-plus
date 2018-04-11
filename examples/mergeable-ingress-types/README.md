@@ -5,7 +5,7 @@ for easier management when using a large amount of paths.
 
 ## Syntax and Rules
 
-A Master is declared using `nginx.org/mergible-ingress-type: master`. A Master will process all configurations at the
+A Master is declared using `nginx.org/mergeable-ingress-type: master`. A Master will process all configurations at the
 host level, which includes the TLS configuration, and any annotations which will be applied for the complete host. There
 can only be one ingress resource on a unique host that contains the master value. Paths cannot be part of the
 ingress resource.
@@ -16,7 +16,7 @@ Masters cannot contain the following annotations:
 * nginx.org/websocket-services
 * nginx.com/sticky-cookie-services
 
-A Minion is declared using `nginx.org/mergible-ingress-type: minion`. A Minion will be used to append different
+A Minion is declared using `nginx.org/mergeable-ingress-type: minion`. A Minion will be used to append different
 locations to an ingress resource with the Master value. TLS configurations are not allowed. Multiple minions can be
 applied per master as long as they do not have conflicting paths. If a conflicting path is present then the path defined
 on the oldest minion will be used.
@@ -42,7 +42,7 @@ Note: Ingress Resources with more than one host cannot be used.
 ## Example
 
 In this example we deploy the NGINX Ingress controller, a simple web application and then configure
-load balancing for that application using Ingress resources with the `nginx.org/mergible-ingress-type` annotations.
+load balancing for that application using Ingress resources with the `nginx.org/mergeable-ingress-type` annotations.
 
 ## Running the Example
 

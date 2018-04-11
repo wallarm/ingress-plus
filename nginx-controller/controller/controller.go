@@ -783,21 +783,21 @@ func (lbc *LoadBalancerController) syncIng(task Task) {
 		ing := obj.(*extensions.Ingress)
 
 		if isMaster(ing) {
-			mergableIngExs, err := lbc.createMergableIngresses(ing)
+			mergeableIngExs, err := lbc.createMergableIngresses(ing)
 			if err != nil {
 				lbc.syncQueue.requeueAfter(task, err, 5*time.Second)
 				lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "Rejected", "%v was rejected: %v", key, err)
 				return
 			}
-			err = lbc.cnf.AddOrUpdateMergableIngress(mergableIngExs)
+			err = lbc.cnf.AddOrUpdateMergableIngress(mergeableIngExs)
 			if err != nil {
 				lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "AddedOrUpdatedWithError", "Configuration for %v(Master) was added or updated, but not applied: %v", key, err)
-				for _, minion := range mergableIngExs.Minions {
+				for _, minion := range mergeableIngExs.Minions {
 					lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "AddedOrUpdatedWithError", "Configuration for %v/%v(Minion) was added or updated, but not applied: %v", minion.Ingress.Namespace, minion.Ingress.Name, err)
 				}
 			} else {
 				lbc.recorder.Eventf(ing, api_v1.EventTypeNormal, "AddedOrUpdated", "Configuration for %v(Master) was added or updated", key)
-				for _, minion := range mergableIngExs.Minions {
+				for _, minion := range mergeableIngExs.Minions {
 					lbc.recorder.Eventf(ing, api_v1.EventTypeNormal, "AddedOrUpdated", "Configuration for %v/%v(Minion) was added or updated", minion.Ingress.Namespace, minion.Ingress.Name)
 				}
 			}
@@ -1233,18 +1233,18 @@ func (lbc *LoadBalancerController) getMinionsForMaster(master *nginx.IngressEx) 
 			continue
 		}
 		if len(ings.Items[i].Spec.Rules) != 1 {
-			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation must contain only one host", ings.Items[i].Namespace, ings.Items[i].Name)
+			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation must contain only one host", ings.Items[i].Namespace, ings.Items[i].Name)
 			continue
 		}
 		if ings.Items[i].Spec.Rules[0].HTTP == nil {
-			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'minion' must contain a Path", ings.Items[i].Namespace, ings.Items[i].Name)
+			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation set to 'minion' must contain a Path", ings.Items[i].Namespace, ings.Items[i].Name)
 			continue
 		}
 
 		uniquePaths := []extensions.HTTPIngressPath{}
 		for _, path := range ings.Items[i].Spec.Rules[0].HTTP.Paths {
 			if val, ok := minionPaths[path.Path]; ok {
-				glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'minion' cannot contain the same path as another ingress resource, %v/%v.",
+				glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation set to 'minion' cannot contain the same path as another ingress resource, %v/%v.",
 					ings.Items[i].Namespace, ings.Items[i].Name, val.Namespace, val.Name)
 				glog.Errorf("Path %s for Ingress Resource %v/%v will be ignored", path.Path, val.Namespace, val.Name)
 			} else {
@@ -1260,7 +1260,7 @@ func (lbc *LoadBalancerController) getMinionsForMaster(master *nginx.IngressEx) 
 			continue
 		}
 		if len(ingEx.TLSSecrets) > 0 || ingEx.JWTKey != nil {
-			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'minion' cannot contain TLSSecrets or JWTKeys", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+			glog.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation set to 'minion' cannot contain TLSSecrets or JWTKeys", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 			continue
 		}
 		minions = append(minions, ingEx)
@@ -1300,7 +1300,7 @@ func (lbc *LoadBalancerController) createMergableIngresses(master *extensions.In
 	mergeableIngresses := nginx.MergeableIngresses{}
 
 	if len(master.Spec.Rules) != 1 {
-		err := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation must contain only one host", master.Namespace, master.Name)
+		err := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation must contain only one host", master.Namespace, master.Name)
 		return &mergeableIngresses, err
 	}
 
@@ -1308,7 +1308,7 @@ func (lbc *LoadBalancerController) createMergableIngresses(master *extensions.In
 	if master.Spec.Rules[0].HTTP != nil {
 		if master.Spec.Rules[0].HTTP != &empty {
 			if len(master.Spec.Rules[0].HTTP.Paths) != 0 {
-				err := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergible-ingress-type' annotation set to 'master' cannot contain Paths", master.Namespace, master.Name)
+				err := fmt.Errorf("Ingress Resource %v/%v with the 'nginx.org/mergeable-ingress-type' annotation set to 'master' cannot contain Paths", master.Namespace, master.Name)
 				return &mergeableIngresses, err
 			}
 		}
@@ -1337,14 +1337,14 @@ func (lbc *LoadBalancerController) createMergableIngresses(master *extensions.In
 }
 
 func isMinion(ing *extensions.Ingress) bool {
-	if ing.Annotations["nginx.org/mergible-ingress-type"] == "minion" {
+	if ing.Annotations["nginx.org/mergeable-ingress-type"] == "minion" {
 		return true
 	}
 	return false
 }
 
 func isMaster(ing *extensions.Ingress) bool {
-	if ing.Annotations["nginx.org/mergible-ingress-type"] == "master" {
+	if ing.Annotations["nginx.org/mergeable-ingress-type"] == "master" {
 		return true
 	}
 	return false

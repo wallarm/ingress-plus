@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -83,6 +84,9 @@ func TestFilterMasterAnnotations(t *testing.T) {
 		"nginx.org/ssl-services",
 	}
 
+	sort.Strings(removedAnnotations)
+	sort.Strings(expectedRemovedAnnotations)
+
 	if !reflect.DeepEqual(expectedfilteredMasterAnnotations, masterAnnotations) {
 		t.Errorf("filterMasterAnnotations returned %v, but expected %v", masterAnnotations, expectedfilteredMasterAnnotations)
 	}
@@ -110,6 +114,9 @@ func TestFilterMinionAnnotations(t *testing.T) {
 		"nginx.org/hsts-max-age",
 		"nginx.org/hsts-include-subdomains",
 	}
+
+	sort.Strings(removedAnnotations)
+	sort.Strings(expectedRemovedAnnotations)
 
 	if !reflect.DeepEqual(expectedfilteredMinionAnnotations, minionAnnotations) {
 		t.Errorf("filterMinionAnnotations returned %v, but expected %v", minionAnnotations, expectedfilteredMinionAnnotations)
