@@ -280,7 +280,11 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 
 	//Override from annotation
 	if lbMethod, exists := ingEx.Ingress.Annotations["nginx.org/lb-method"]; exists {
-		ingCfg.LBMethod = lbMethod
+		if parsedMethod, err := ParseLBMethod(lbMethod); err != nil {
+			glog.Errorf("Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod)
+		} else {
+			ingCfg.LBMethod = parsedMethod
+		}
 	}
 
 	if serverTokens, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/server-tokens", ingEx.Ingress); exists {

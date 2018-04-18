@@ -34,10 +34,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
+	"sort"
+
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sort"
 )
 
 const (
@@ -449,7 +450,11 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 		}
 
 		if lbMethod, exists := cfgm.Data["lb-method"]; exists {
-			cfg.LBMethod = lbMethod
+			if parsedMethod, err := nginx.ParseLBMethod(lbMethod); err != nil {
+				glog.Errorf("Configmap %s/%s: Invalid value for the lb-method key: got %q", cfgm.GetNamespace(), cfgm.GetName(), lbMethod)
+			} else {
+				cfg.LBMethod = parsedMethod
+			}
 		}
 
 		if proxyConnectTimeout, exists := cfgm.Data["proxy-connect-timeout"]; exists {
