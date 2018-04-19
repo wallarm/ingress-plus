@@ -280,10 +280,18 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 
 	//Override from annotation
 	if lbMethod, exists := ingEx.Ingress.Annotations["nginx.org/lb-method"]; exists {
-		if parsedMethod, err := ParseLBMethod(lbMethod); err != nil {
-			glog.Errorf("Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod)
+		if cnf.isPlus() {
+			if parsedMethod, err := ParseLBMethodForPlus(lbMethod); err != nil {
+				glog.Errorf("Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
+			} else {
+				ingCfg.LBMethod = parsedMethod
+			}
 		} else {
-			ingCfg.LBMethod = parsedMethod
+			if parsedMethod, err := ParseLBMethod(lbMethod); err != nil {
+				glog.Errorf("Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
+			} else {
+				ingCfg.LBMethod = parsedMethod
+			}
 		}
 	}
 

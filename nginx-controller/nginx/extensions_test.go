@@ -7,17 +7,19 @@ func TestParseLBMethod(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"", "least_conn"},
 		{"least_conn", "least_conn"},
 		{"round_robin", ""},
 		{"ip_hash", "ip_hash"},
 		{"hash $request_id", "hash $request_id"},
+		{"hash $request_id consistent", "hash $request_id consistent"},
 	}
 
 	var invalidInput = []string{
+		"",
 		"blabla",
 		"least_time header",
 		"hash123",
+		"hash $request_id conwrongspelling",
 	}
 
 	for _, test := range testsWithValidInput {
@@ -44,7 +46,6 @@ func TestParseLBMethodForPlus(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"", "least_conn"},
 		{"least_conn", "least_conn"},
 		{"round_robin", ""},
 		{"ip_hash", "ip_hash"},
@@ -56,13 +57,14 @@ func TestParseLBMethodForPlus(t *testing.T) {
 	}
 
 	var invalidInput = []string{
+		"",
 		"blabla",
 		"hash123",
-		"least_time header inflight",
+		"least_time inflight header",
 	}
 
 	for _, test := range testsWithValidInput {
-		result, err := ParseLBMethod(test.input)
+		result, err := ParseLBMethodForPlus(test.input)
 		if err != nil {
 			t.Errorf("TestParseLBMethod(%q) returned an error for valid input", test.input)
 		}
@@ -73,7 +75,7 @@ func TestParseLBMethodForPlus(t *testing.T) {
 	}
 
 	for _, input := range invalidInput {
-		_, err := ParseLBMethod(input)
+		_, err := ParseLBMethodForPlus(input)
 		if err == nil {
 			t.Errorf("TestParseLBMethod(%q) does not return an error for invalid input", input)
 		}

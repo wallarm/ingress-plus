@@ -450,10 +450,18 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 		}
 
 		if lbMethod, exists := cfgm.Data["lb-method"]; exists {
-			if parsedMethod, err := nginx.ParseLBMethod(lbMethod); err != nil {
-				glog.Errorf("Configmap %s/%s: Invalid value for the lb-method key: got %q", cfgm.GetNamespace(), cfgm.GetName(), lbMethod)
+			if lbc.nginxPlus {
+				if parsedMethod, err := nginx.ParseLBMethodForPlus(lbMethod); err != nil {
+					glog.Errorf("Configmap %s/%s: Invalid value for the lb-method key: got %q: %v", cfgm.GetNamespace(), cfgm.GetName(), lbMethod, err)
+				} else {
+					cfg.LBMethod = parsedMethod
+				}
 			} else {
-				cfg.LBMethod = parsedMethod
+				if parsedMethod, err := nginx.ParseLBMethod(lbMethod); err != nil {
+					glog.Errorf("Configmap %s/%s: Invalid value for the lb-method key: got %q: %v", cfgm.GetNamespace(), cfgm.GetName(), lbMethod, err)
+				} else {
+					cfg.LBMethod = parsedMethod
+				}
 			}
 		}
 
