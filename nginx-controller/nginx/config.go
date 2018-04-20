@@ -73,5 +73,6 @@ func NewDefaultConfig() *Config {
 		SSLPorts:                   []int{443},
 		MaxFails:                   1,
 		FailTimeout:                "10s",
+		LBMethod:                   "least_conn",
 	}
 }

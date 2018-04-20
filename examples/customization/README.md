@@ -39,7 +39,7 @@ The table below summarizes all of the options. For some of them, there are examp
 | N/A | `http-snippets` | Sets a custom snippet in http context. | N/A | |
 | `nginx.org/location-snippets` | `location-snippets` | Sets a custom snippet in location context. | N/A | |
 | `nginx.org/server-snippets` | `server-snippets` | Sets a custom snippet in server context. | N/A | |
-| `nginx.org/lb-method` | `lb-method` | Sets the [load balancing method](https://www.nginx.com/resources/admin-guide/load-balancer/#method). The default `""` specifies the round-robin method. | `""` | |
+| `nginx.org/lb-method` | `lb-method` | Sets the [load balancing method](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#choosing-a-load-balancing-method). To use the round-robin method, specify `"round_robin"`. | `"least_conn"` | |
 | `nginx.org/listen-ports` | N/A | Configures HTTP ports that NGINX will listen on. | `[80]` | |
 | `nginx.org/listen-ports-ssl` | N/A | Configures HTTPS ports that NGINX will listen on. | `[443]` | |
 | N/A | `worker-processes` | Sets the value of the [worker_processes](http://nginx.org/en/docs/ngx_core_module.html#worker_processes) directive. | `auto` | |
@@ -64,7 +64,7 @@ The table below summarizes all of the options. For some of them, there are examp
 
 1. Make sure that you specify the configmaps resource to use when you start an Ingress controller.
 For example, `-nginx-configmaps=default/nginx-config`, where we specify
-the config map to use with the following format: `<namespace>/<name>`. 
+the config map to use with the following format: `<namespace>/<name>`.
 
 1. Create a configmaps file with the name *nginx-config.yaml* and set the values
 that make sense for your setup:
