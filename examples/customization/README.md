@@ -9,12 +9,12 @@ The table below summarizes all of the options. For some of them, there are examp
 | Annotation | ConfigMaps Key | Description | Default | Example |
 | ---------- | -------------- | ----------- | ------- | ------- |
 | `kubernetes.io/ingress.class` | N/A | Specifies which Ingress controller must handle the Ingress resource. Set to `nginx` to make NGINX Ingress controller handle it. | N/A | [Multiple Ingress controllers](../multiple-ingress-controllers). |
-| `nginx.org/proxy-connect-timeout` | `proxy-connect-timeout` | Sets the value of the [proxy_connect_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_connect_timeout) directive. | `60s` | |
-| `nginx.org/proxy-read-timeout` | `proxy-read-timeout` | Sets the value of the [proxy_read_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout) directive. | `60s` | |
+| `nginx.org/proxy-connect-timeout` | `proxy-connect-timeout` | Sets the value of the [proxy_connect_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_connect_timeout) and [grpc_connect_timeout](http://nginx.org/en/docs/http/ngx_http_grpc_module.html#grpc_connect_timeout) directive. | `60s` | |
+| `nginx.org/proxy-read-timeout` | `proxy-read-timeout` | Sets the value of the [proxy_read_timeout](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout) and [grpc_read_timeout](http://nginx.org/en/docs/http/ngx_http_grpc_module.html#grpc_read_timeout) directive. | `60s` | |
 | `nginx.org/client-max-body-size` | `client-max-body-size` | Sets the value of the [client_max_body_size](http://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size) directive. | `1m` | |
 | `nginx.org/proxy-buffering` | `proxy-buffering` | Enables or disables [buffering of responses](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering) from the proxied server. | `True` | |
 | `nginx.org/proxy-buffers` | `proxy-buffers` | Sets the value of the [proxy_buffers](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers) directive. | Depends on the platform. | |
-| `nginx.org/proxy-buffer-size` | `proxy-buffer-size` | Sets the value of the [proxy_buffer_size](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffer_size) directive | Depends on the platform. | |
+| `nginx.org/proxy-buffer-size` | `proxy-buffer-size` | Sets the value of the [proxy_buffer_size](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffer_size) and [grpc_buffer_size](http://nginx.org/en/docs/http/ngx_http_grpc_module.html#grpc_buffer_size) directives. | Depends on the platform. | |
 | `nginx.org/proxy-max-temp-file-size` | `proxy-max-temp-file-size` | Sets the value of the  [proxy_max_temp_file_size](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_max_temp_file_size) directive. | `1024m` | |
 | `nginx.org/proxy-hide-headers` | `proxy-hide-headers` | Sets the value of one or more  [proxy_hide_header](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_hide_header) directives. Example: `"nginx.org/proxy-hide-headers": "header-a,header-b"` | N/A | |
 | `nginx.org/proxy-pass-headers` | `proxy-pass-headers` | Sets the value of one or more   [proxy_pass_header](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass_header) directives. Example: `"nginx.org/proxy-pass-headers": "header-a,header-b"` | N/A | |
@@ -51,6 +51,7 @@ The table below summarizes all of the options. For some of them, there are examp
 | N/A | `proxy-protocol` | Enables PROXY Protocol for incoming connections. | `False` | [Proxy Protocol](../proxy-protocol). |
 | `nginx.org/rewrites` | N/A | Configures URI rewriting. | N/A | [Rewrites Support](../rewrites). |
 | `nginx.org/ssl-services` | N/A | Enables HTTPS when connecting to the endpoints of services. | N/A | [SSL Services Support](../ssl-services). |
+| `nginx.org/grpc-services` | N/A | Enables gRPC for services. | N/A | [GRPC Services Support](../grpc-services).|
 | `nginx.org/websocket-services` | N/A | Enables WebSocket for services. | N/A | [WebSocket support](../websocket). |
 | `nginx.org/max-fails` | `max-fails` | Sets the value of the [max_fails](https://nginx.org/en/docs/http/ngx_http_upstream_module.html#max_fails) parameter of the `server` directive. | `1` | |
 | `nginx.org/fail-timeout` | `fail-timeout` | Sets the value of the [fail_timeout](https://nginx.org/en/docs/http/ngx_http_upstream_module.html#fail_timeout) parameter of the `server` directive. | `10s` | |

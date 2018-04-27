@@ -60,6 +60,7 @@ type Server struct {
 	SSL                   bool
 	SSLCertificate        string
 	SSLCertificateKey     string
+	GRPCOnly              bool
 	StatusZone            string
 	HTTP2                 bool
 	RedirectToHTTPS       bool
@@ -99,6 +100,7 @@ type Location struct {
 	Websocket            bool
 	Rewrite              string
 	SSL                  bool
+	GRPC                 bool
 	ProxyBuffering       bool
 	ProxyBuffers         string
 	ProxyBufferSize      string
