@@ -244,11 +244,15 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		rootLocation := false
 
 		grpcOnly := true
-		for _, path := range rule.HTTP.Paths {
-			if _, exists := grpcServices[path.Backend.ServiceName]; !exists {
-				grpcOnly = false
-				break
+		if len(grpcServices) > 0 {
+			for _, path := range rule.HTTP.Paths {
+				if _, exists := grpcServices[path.Backend.ServiceName]; !exists {
+					grpcOnly = false
+					break
+				}
 			}
+		} else {
+			grpcOnly = false
 		}
 
 		for _, path := range rule.HTTP.Paths {
