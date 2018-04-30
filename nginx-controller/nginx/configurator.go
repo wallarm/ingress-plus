@@ -181,6 +181,13 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 	spServices := getSessionPersistenceServices(ingEx)
 	rewrites := getRewrites(ingEx)
 	sslServices := getSSLServices(ingEx)
+	grpcServices := getGrpcServices(ingEx)
+
+	// HTTP2 is required for gRPC to function
+	if len(grpcServices) > 0 && !ingCfg.HTTP2 {
+		glog.Errorf("Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+		grpcServices = make(map[string]bool)
+	}
 
 	if ingEx.Ingress.Spec.Backend != nil {
 		name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
@@ -236,6 +243,14 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		var locations []Location
 		rootLocation := false
 
+		grpcOnly := true
+		for _, path := range rule.HTTP.Paths {
+			if _, exists := grpcServices[path.Backend.ServiceName]; !exists {
+				grpcOnly = false
+				break
+			}
+		}
+
 		for _, path := range rule.HTTP.Paths {
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, path.Backend.ServiceName)
 
@@ -244,7 +259,8 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 				upstreams[upsName] = upstream
 			}
 
-			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg, wsServices[path.Backend.ServiceName], rewrites[path.Backend.ServiceName], sslServices[path.Backend.ServiceName])
+			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &ingCfg, wsServices[path.Backend.ServiceName], rewrites[path.Backend.ServiceName],
+				sslServices[path.Backend.ServiceName], grpcServices[path.Backend.ServiceName])
 			locations = append(locations, loc)
 
 			if loc.Path == "/" {
@@ -254,11 +270,18 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 
 		if rootLocation == false && ingEx.Ingress.Spec.Backend != nil {
 			upsName := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.Backend.ServiceName)
-			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], rewrites[ingEx.Ingress.Spec.Backend.ServiceName], sslServices[ingEx.Ingress.Spec.Backend.ServiceName])
+
+			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &ingCfg, wsServices[ingEx.Ingress.Spec.Backend.ServiceName], rewrites[ingEx.Ingress.Spec.Backend.ServiceName],
+				sslServices[ingEx.Ingress.Spec.Backend.ServiceName], grpcServices[ingEx.Ingress.Spec.Backend.ServiceName])
 			locations = append(locations, loc)
+
+			if _, exists := grpcServices[ingEx.Ingress.Spec.Backend.ServiceName]; !exists {
+				grpcOnly = false
+			}
 		}
 
 		server.Locations = locations
+		server.GRPCOnly = grpcOnly
 
 		servers = append(servers, server)
 	}
@@ -517,6 +540,18 @@ func getSSLServices(ingEx *IngressEx) map[string]bool {
 	return sslServices
 }
 
+func getGrpcServices(ingEx *IngressEx) map[string]bool {
+	grpcServices := make(map[string]bool)
+
+	if services, exists := ingEx.Ingress.Annotations["nginx.org/grpc-services"]; exists {
+		for _, svc := range strings.Split(services, ",") {
+			grpcServices[svc] = true
+		}
+	}
+
+	return grpcServices
+}
+
 func getSessionPersistenceServices(ingEx *IngressEx) map[string]string {
 	spServices := make(map[string]string)
 
@@ -595,7 +630,7 @@ func parsePort(value string) (int, error) {
 	return int(port), nil
 }
 
-func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool) Location {
+func createLocation(path string, upstream Upstream, cfg *Config, websocket bool, rewrite string, ssl bool, grpc bool) Location {
 	loc := Location{
 		Path:                 path,
 		Upstream:             upstream,
@@ -605,6 +640,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 		Websocket:            websocket,
 		Rewrite:              rewrite,
 		SSL:                  ssl,
+		GRPC:                 grpc,
 		ProxyBuffering:       cfg.ProxyBuffering,
 		ProxyBuffers:         cfg.ProxyBuffers,
 		ProxyBufferSize:      cfg.ProxyBufferSize,
