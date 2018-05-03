@@ -1,6 +1,6 @@
 # Installing the Ingress Controller
 
-## Prerequisites 
+## Prerequisites
 
 Make sure you have access to the Ingress controller image:
 
@@ -36,13 +36,13 @@ If RBAC is enabled in your cluster, create a cluster role and bind it to the ser
 $ kubectl apply -f rbac/rbac.yaml
 ```
 
-**Note**: To perform this step you must be a cluster admin.
+**Note**: To perform this step you must be a cluster admin. On GCE you'll need to [assign yourself that role](https://github.com/coreos/prometheus-operator/blob/master/Documentation/troubleshooting.md)
 
 ## 3. Deploy the Ingress Controller
 
 We include two options for deploying the Ingress controller:
 * *Deployment*. Use a Deployment if you plan to dynamically change the number of Ingress controller replicas.
-* *DaemonSet*. Use a DaemonSet for deploying the Ingress controller on every node or a subset of nodes. 
+* *DaemonSet*. Use a DaemonSet for deploying the Ingress controller on every node or a subset of nodes.
 
 ### 3.1 Create a Deployment
 
@@ -96,7 +96,7 @@ Create a service with the type *NodePort*:
 ```
 $ kubectl create -f service/nodeport.yaml
 ```
-Kubernetes will allocate two ports on every node of the cluster. To access the Ingress controller, use an IP address of any node of the cluster along with two allocated ports. Read more about the type NodePort [here](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport).
+Kubernetes will randomly allocate two ports on every node of the cluster. To access the Ingress controller, use an IP address of any node of the cluster along with the two allocated ports. Read more about the type NodePort [here](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport).
 
 ### 4.2 Service with the Type LoadBalancer
 
@@ -145,9 +145,9 @@ Read more about the type LoadBalancer [here](https://kubernetes.io/docs/concepts
 For NGINX Plus, you can access the live activity monitoring dashboard:
 1. Use `kubectl port-forward` command to forward connections to port 8080 on your local machine to port 8080 of an NGINX Plus Ingress controller pod (replace <nginx-plus-ingress-pod> with the actual name of a pod):
     ```
-    $ kubectl port-forward <nginx-plus-ingress-pod> 8080:8080 --namespace=nginx-ingress 
+    $ kubectl port-forward <nginx-plus-ingress-pod> 8080:8080 --namespace=nginx-ingress
     ```
-1. Open your browser at http://127.0.0.1:8080/dashboard.html to access the dashboard. 
+1. Open your browser at http://127.0.0.1:8080/dashboard.html to access the dashboard.
 
 ## Support For Prometheus Monitoring
 
