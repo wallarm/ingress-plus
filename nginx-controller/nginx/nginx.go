@@ -51,6 +51,7 @@ type UpstreamServer struct {
 	Port        string
 	MaxFails    int64
 	FailTimeout string
+	SlowStart   string
 }
 
 // HealthCheck describes an active HTTP health check
