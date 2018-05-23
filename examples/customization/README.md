@@ -63,6 +63,7 @@ The table below summarizes all of the options. For some of them, there are examp
 | `nginx.com/health-checks` | N/A | Enables active health checks. | `False` | [Support for Active Health Checks](../health-checks). |
 | `nginx.com/health-checks-mandatory` | N/A | Configures active health checks as mandatory. | `False` | [Support for Active Health Checks](../health-checks). |
 | `nginx.com/health-checks-mandatory-queue` | N/A | When active health checks are mandatory, configures a queue for temporary storing incoming requests during the time when NGINX Plus is checking the health of the endpoints after a configuration reload. | `0` | [Support for Active Health Checks](../health-checks). |
+| `nginx.com/slow-start` | N/A | Sets the upstream server [slow-start period](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#server-slow-start). By default, slow-start is activated after a server becomes [available](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-health-check/#passive-health-checks) or [healthy](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-health-check/#active-health-checks). To enable slow-start for newly added servers, configure [mandatory active health checks](../health-checks). | `"0s"` | |
 
 ## Using ConfigMaps
 

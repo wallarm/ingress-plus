@@ -38,6 +38,7 @@ type Config struct {
 	HealthCheckEnabled            bool
 	HealthCheckMandatory          bool
 	HealthCheckMandatoryQueue     int64
+	SlowStart                     string
 
 	// http://nginx.org/en/docs/http/ngx_http_realip_module.html
 	RealIPHeader    string

@@ -1,7 +1,9 @@
 package nginx
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -58,4 +60,29 @@ func validateHashLBMethod(method string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Invalid load balancing method: %q", method)
+}
+
+// http://nginx.org/en/docs/syntax.html
+var validTimeSuffixes = []string{
+	"ms",
+	"s",
+	"m",
+	"h",
+	"d",
+	"w",
+	"M",
+	"y",
+}
+
+var durationEscaped = strings.Join(validTimeSuffixes, "|")
+var validNginxTime = regexp.MustCompile(`^([0-9]+([` + durationEscaped + `]?){0,1} *)+$`)
+
+// ParseSlowStart ensures that the slow_start value in the annotation is valid.
+func ParseSlowStart(s string) (string, error) {
+	s = strings.TrimSpace(s)
+
+	if validNginxTime.MatchString(s) {
+		return s, nil
+	}
+	return "", errors.New("Invalid time string")
 }

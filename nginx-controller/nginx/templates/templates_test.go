@@ -21,6 +21,7 @@ var testUps = nginx.Upstream{
 			Port:        "8181",
 			MaxFails:    0,
 			FailTimeout: "1s",
+			SlowStart:   "5s",
 		},
 	},
 }

@@ -14,6 +14,7 @@ type NginxAPIController struct {
 type ServerConfig struct {
 	MaxFails    int64
 	FailTimeout string
+	SlowStart   string
 }
 
 func NewNginxAPIController(httpClient *http.Client, endpoint string, local bool) (*NginxAPIController, error) {
@@ -37,6 +38,7 @@ func (nginx *NginxAPIController) UpdateServers(upstream string, servers []string
 			Server:      s,
 			MaxFails:    config.MaxFails,
 			FailTimeout: config.FailTimeout,
+			SlowStart:   config.SlowStart,
 		})
 	}
 

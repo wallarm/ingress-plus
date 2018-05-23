@@ -3,7 +3,8 @@ upstream {{$upstream.Name}} {
 	zone {{$upstream.Name}} 256k;
 	{{if $upstream.LBMethod }}{{$upstream.LBMethod}};{{end}}
 	{{range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}}:{{$server.Port}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}};{{end}}
+	server {{$server.Address}}:{{$server.Port}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}}
+	    {{- if $server.SlowStart}} slow_start={{$server.SlowStart}}{{end}};{{end}}
 	{{if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{end}}

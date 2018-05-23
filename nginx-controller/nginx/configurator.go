@@ -349,20 +349,36 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 		}
 		if cnf.isPlus() {
 			ingCfg.HealthCheckEnabled = healthCheckEnabled
-			if healthCheckMandatory, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory", ingEx.Ingress); exists {
-				if err != nil {
-					glog.Error(err)
-				}
-				ingCfg.HealthCheckMandatory = healthCheckMandatory
-				if healthCheckQueue, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory-queue", ingEx.Ingress); exists {
-					if err != nil {
-						glog.Error(err)
-					}
-					ingCfg.HealthCheckMandatoryQueue = healthCheckQueue
-				}
-			}
 		} else {
 			glog.Warning("Annotation 'nginx.com/health-checks' requires NGINX Plus")
+		}
+	}
+	if ingCfg.HealthCheckEnabled {
+		if healthCheckMandatory, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory", ingEx.Ingress); exists {
+			if err != nil {
+				glog.Error(err)
+			}
+			ingCfg.HealthCheckMandatory = healthCheckMandatory
+		}
+	}
+	if ingCfg.HealthCheckMandatory {
+		if healthCheckQueue, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory-queue", ingEx.Ingress); exists {
+			if err != nil {
+				glog.Error(err)
+			}
+			ingCfg.HealthCheckMandatoryQueue = healthCheckQueue
+		}
+	}
+
+	if slowStart, exists := ingEx.Ingress.Annotations["nginx.com/slow-start"]; exists {
+		if parsedSlowStart, err := ParseSlowStart(slowStart); err != nil {
+			glog.Errorf("Ingress %s/%s: Invalid value nginx.org/slow-start: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), slowStart, err)
+		} else {
+			if cnf.isPlus() {
+				ingCfg.SlowStart = parsedSlowStart
+			} else {
+				glog.Warning("Annotation 'nginx.com/slow-start' requires NGINX Plus")
+			}
 		}
 	}
 
@@ -732,6 +748,7 @@ func (cnf *Configurator) createUpstream(ingEx *IngressEx, name string, backend *
 				Port:        addressport[1],
 				MaxFails:    cfg.MaxFails,
 				FailTimeout: cfg.FailTimeout,
+				SlowStart:   cfg.SlowStart,
 			})
 		}
 		if len(upsServers) > 0 {
@@ -905,6 +922,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	cfg := plus.ServerConfig{
 		MaxFails:    ingCfg.MaxFails,
 		FailTimeout: ingCfg.FailTimeout,
+		SlowStart:   ingCfg.SlowStart,
 	}
 
 	if ingEx.Ingress.Spec.Backend != nil {
