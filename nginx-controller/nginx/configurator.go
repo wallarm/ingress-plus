@@ -272,6 +272,12 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 		for _, path := range rule.HTTP.Paths {
 			upsName := getNameForUpstream(ingEx.Ingress, rule.Host, &path.Backend)
 
+			if ingCfg.HealthCheckEnabled {
+				if hc, exists := ingEx.HealthChecks[path.Backend.ServiceName+path.Backend.ServicePort.String()]; exists {
+					healthChecks[upsName] = cnf.createHealthCheck(hc, upsName, &ingCfg)
+				}
+			}
+
 			if _, exists := upstreams[upsName]; !exists {
 				upstream := cnf.createUpstream(ingEx, upsName, &path.Backend, ingEx.Ingress.Namespace, spServices[path.Backend.ServiceName], &ingCfg)
 				upstreams[upsName] = upstream
