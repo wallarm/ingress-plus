@@ -79,6 +79,13 @@ func (cnf *Configurator) AddOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 }
 
 func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) {
+	nginxCfg := cnf.generateNginxCfgForMergeableIngresses(mergeableIngs)
+	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
+	cnf.ingresses[name] = mergeableIngs.Master
+}
+
+func (cnf *Configurator) generateNginxCfgForMergeableIngresses(mergeableIngs *MergeableIngresses) IngressNginxConfig {
 	var masterServer Server
 	var locations []Location
 	var upstreams []Upstream
@@ -94,10 +101,9 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 
 	pems, jwtKeyFileName := cnf.updateSecrets(mergeableIngs.Master)
 	masterNginxCfg := cnf.generateNginxCfg(mergeableIngs.Master, pems, jwtKeyFileName)
-	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
 
 	masterServer = masterNginxCfg.Servers[0]
-	masterServer.IngressResource = name
+	masterServer.IngressResource = objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
 	masterServer.Locations = []Location{}
 
 	for _, val := range masterNginxCfg.Upstreams {
@@ -142,14 +148,11 @@ func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 	masterServer.HealthChecks = healthChecks
 	masterServer.Locations = locations
 
-	nginxCfg := IngressNginxConfig{
+	return IngressNginxConfig{
 		Servers:   []Server{masterServer},
 		Upstreams: upstreams,
 		Keepalive: keepalive,
 	}
-
-	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
-	cnf.ingresses[name] = mergeableIngs.Master
 }
 
 func (cnf *Configurator) updateSecrets(ingEx *IngressEx) (map[string]string, string) {
@@ -914,6 +917,20 @@ func (cnf *Configurator) UpdateEndpoints(ingEx *IngressEx) error {
 // UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource
 func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngs *MergeableIngresses) error {
 	cnf.addOrUpdateMergableIngress(mergeableIngs)
+
+	if cnf.isPlus() {
+		var err error
+		for _, ing := range mergeableIngs.Minions {
+			err = cnf.updatePlusEndpoints(ing)
+			if err != nil {
+				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				break
+			}
+		}
+		if err == nil {
+			return nil
+		}
+	}
 
 	if err := cnf.nginx.Reload(); err != nil {
 		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
