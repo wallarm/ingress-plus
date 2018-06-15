@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -57,11 +58,18 @@ var (
 		`Specifies a secret with a TLS certificate and key for SSL termination of
 		the default server. The value must follow the following format: <namespace>/<name>.
 		If not specified, the key and the cert from /etc/nginx/secrets/default is used.`)
+
+	versionFlag = flag.Bool("version", false, "Print the version and git-commit hash and exit.")
 )
 
 func main() {
 	flag.Parse()
 	flag.Lookup("logtostderr").Value.Set("true")
+
+	if *versionFlag {
+		fmt.Printf("Version=%v GitCommit=%v\n", version, gitCommit)
+		os.Exit(0)
+	}
 
 	glog.Infof("Starting NGINX Ingress controller Version=%v GitCommit=%v\n", version, gitCommit)
 
