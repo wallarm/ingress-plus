@@ -1013,10 +1013,9 @@ func mergeMasterAnnotationsIntoMinion(minionAnnotations map[string]string, maste
 	}
 }
 
-// UpdateConfig updates NGINX Configuration parameters
-func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, mergeableIngs map[string]*MergeableIngresses) error {
-	cnf.config = config
-	mainCfg := &NginxMainConfig{
+// GenerateNginxMainConfig generate NginxMainConfig from Config
+func GenerateNginxMainConfig(config *Config) *NginxMainConfig {
+	nginxCfg := &NginxMainConfig{
 		MainSnippets:              config.MainMainSnippets,
 		HTTPSnippets:              config.MainHTTPSnippets,
 		ServerNamesHashBucketSize: config.MainServerNamesHashBucketSize,
@@ -1035,7 +1034,20 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, merg
 		WorkerConnections:     config.MainWorkerConnections,
 		WorkerRlimitNofile:    config.MainWorkerRlimitNofile,
 	}
+	return nginxCfg
+}
 
+// UpdateConfig updates NGINX Configuration parameters
+func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, mergeableIngs map[string]*MergeableIngresses) error {
+	cnf.config = config
+	if cnf.config.MainServerSSLDHParamFileContent != nil {
+		fileName, err := cnf.nginx.AddOrUpdateDHParam(*cnf.config.MainServerSSLDHParamFileContent)
+		if err != nil {
+			return fmt.Errorf("Error when updating dhparams: %v", err)
+		}
+		config.MainServerSSLDHParam = fileName
+	}
+	mainCfg := GenerateNginxMainConfig(config)
 	cnf.nginx.UpdateMainConfigFile(mainCfg)
 
 	for _, ingEx := range ingExes {
