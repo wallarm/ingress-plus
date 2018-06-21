@@ -28,38 +28,39 @@ var (
 	gitCommit string
 
 	healthStatus = flag.Bool("health-status", false,
-		`If present, the default server listening on port 80 with the health check
-		location "/nginx-health" gets added to the main nginx configuration.`)
+		`Add a location "/nginx-health" to the default server. The location responds with the 200 status code for any request.
+	Useful for external health-checking of the Ingress controller`)
 
 	proxyURL = flag.String("proxy", "",
-		`If specified, the controller assumes a kubctl proxy server is running on the
-		given url and creates a proxy client. Regenerated NGINX configuration files
-    	are not written to the disk, instead they are printed to stdout. Also NGINX
-    	is not getting invoked. This flag is for testing.`)
+		`Use a proxy server to connect to Kubernetes API started by "kubectl proxy" command. For testing purposes only.
+	The Ingress controller does not start NGINX and does not write any generated NGINX configuration files to disk`)
 
 	watchNamespace = flag.String("watch-namespace", api_v1.NamespaceAll,
-		`Namespace to watch for Ingress/Services/Endpoints. By default the controller
-		watches acrosss all namespaces`)
+		`Namespace to watch for Ingress resources. By default the Ingress controller watches all namespaces`)
 
 	nginxConfigMaps = flag.String("nginx-configmaps", "",
-		`Specifies a configmaps resource that can be used to customize NGINX
-		configuration. The value must follow the following format: <namespace>/<name>`)
+		`A ConfigMap resource for customizing NGINX configuration. If a ConfigMap is set,
+	but the Ingress controller is not able to fetch it from Kubernetes API, the Ingress controller will fail to start.
+	Format: <namespace>/<name>`)
 
-	nginxPlus = flag.Bool("nginx-plus", false,
-		`Enables support for NGINX Plus.`)
+	nginxPlus = flag.Bool("nginx-plus", false, "Enable support for NGINX Plus")
 
 	ingressClass = flag.String("ingress-class", "nginx",
-		`Specifies a class of ingress. Only processes Ingresses with this value in annotations. Can be used with --use-ingress-class-only. Default 'nginx'`)
+		`A class of the Ingress controller. The Ingress controller only processes Ingress resources that belong to its class
+	- i.e. have the annotation "kubernetes.io/ingress.class" equal to the class. Additionally,
+	the Ingress controller processes Ingress resources that do not have that annotation,
+	which can be disabled by setting the "-use-ingress-class-only" flag`)
 
 	useIngressClassOnly = flag.Bool("use-ingress-class-only", false,
-		`If true, ingress resource will handled by ingress controller with class which specifed by value of ingress-class. Default false`)
+		`Ignore Ingress resources without the "kubernetes.io/ingress.class" annotation`)
 
 	defaultServerSecret = flag.String("default-server-tls-secret", "",
-		`Specifies a secret with a TLS certificate and key for SSL termination of
-		the default server. The value must follow the following format: <namespace>/<name>.
-		If not specified, the key and the cert from /etc/nginx/secrets/default is used.`)
+		`A Secret with a TLS certificate and key for TLS termination of the default server. Format: <namespace>/<name>.
+	If not set, certificate and key in the file "/etc/nginx/secrets/default" are used. If a secret is set,
+	but the Ingress controller is not able to fetch it from Kubernetes API or a secret is not set and
+	the file "/etc/nginx/secrets/default" does not exist, the Ingress controller will fail to start`)
 
-	versionFlag = flag.Bool("version", false, "Print the version and git-commit hash and exit.")
+	versionFlag = flag.Bool("version", false, "Print the version and git-commit hash and exit")
 )
 
 func main() {

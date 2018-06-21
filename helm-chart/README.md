@@ -75,8 +75,12 @@ Parameter | Description | Default
 `controller.service.create` | Creates a service to expose the Ingress controller pods. | true
 `controller.service.type` | The type of service to create for the Ingress controller. | LoadBalancer
 `controller.service.externalTrafficPolicy` | The externalTrafficPolicy of the service. The value Local preserves the client source IP. | Local
-`controller.service.annotations` | The annotations of the Ingress controller service. | {}
+`controller.service.annotations` | The annotations of the Ingress controller service. | { }
 `controller.serviceAccountName` | The serviceAccountName of the Ingress controller pods. Used for RBAC. | nginx-ingress
+`controller.ingressClass` | A class of the Ingress controller. The Ingress controller only processes Ingress resources that belong to its class - i.e. have the annotation `"kubernetes.io/ingress.class"` equal to the class. Additionally, the Ingress controller processes Ingress resources that do not have that annotation which can be disabled by setting the "-use-ingress-class-only" flag. | nginx
+`controller.useIngressClassOnly` | Ignore Ingress resources without the `"kubernetes.io/ingress.class"` annotation. | false
+`controller.watchNamespace` | Namespace to watch for Ingress resources. By default the Ingress controller watches all namespaces. | ""
+`controller.healthStatus` | Add a location "/nginx-health" to the default server. The location responds with the 200 status code for any request. Useful for external health-checking of the Ingress controller. | false
 `rbac.create` | Configures RBAC. | true
 
 Example:
