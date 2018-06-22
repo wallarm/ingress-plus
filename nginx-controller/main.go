@@ -144,7 +144,7 @@ func main() {
 	}
 	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 
-	lbc, _ := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
+	lbc := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()
 
@@ -167,7 +167,7 @@ func handleTermination(lbc *controller.LoadBalancerController, ngxc *nginx.Nginx
 			glog.Errorf("nginx command exited with an error: %v", err)
 			exitStatus = 1
 		} else {
-			glog.Info("nginx command exited succesfully")
+			glog.Info("nginx command exited successfully")
 		}
 		exited = true
 	case <-signalChan:
