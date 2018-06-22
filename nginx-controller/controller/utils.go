@@ -108,7 +108,7 @@ func NewTaskQueue(syncFn func(Task)) *taskQueue {
 	}
 }
 
-// Kind represnts the kind of the Kubernetes resources of a task
+// Kind represents the kind of the Kubernetes resources of a task
 type Kind int
 
 const (

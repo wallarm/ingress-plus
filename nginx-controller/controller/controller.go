@@ -73,7 +73,7 @@ type LoadBalancerController struct {
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool, ingressClass string, useIngressClassOnly bool) (*LoadBalancerController, error) {
+func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool, ingressClass string, useIngressClassOnly bool) *LoadBalancerController {
 	lbc := LoadBalancerController{
 		client:              kubeClient,
 		stopCh:              make(chan struct{}),
@@ -341,7 +341,7 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		}
 	}
 
-	return &lbc, nil
+	return &lbc
 }
 
 // Run starts the loadbalancer controller

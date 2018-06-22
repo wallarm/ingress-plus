@@ -68,7 +68,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
 	cnf.ingresses[name] = ingEx
 }
 
-// AddOrUpdateIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types
+// AddOrUpdateMergableIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types
 func (cnf *Configurator) AddOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) error {
 	cnf.addOrUpdateMergableIngress(mergeableIngs)
 
