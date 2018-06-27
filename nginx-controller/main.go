@@ -130,10 +130,32 @@ func main() {
 		}
 	}
 
+	cfg := nginx.NewDefaultConfig()
+	if *nginxConfigMaps != "" {
+		ns, name, err := controller.ParseNamespaceName(*nginxConfigMaps)
+		if err != nil {
+			glog.Fatalf("Error parsing the nginx-configmaps argument: %v", err)
+		}
+		cfm, err := kubeClient.CoreV1().ConfigMaps(ns).Get(name, meta_v1.GetOptions{})
+		if err != nil {
+			glog.Fatalf("Error when getting %v: %v", *nginxConfigMaps, err)
+		}
+		cfg = nginx.ParseConfigMap(cfm, *nginxPlus)
+		if cfg.MainServerSSLDHParamFileContent != nil {
+			fileName, err := ngxc.AddOrUpdateDHParam(*cfg.MainServerSSLDHParamFileContent)
+			if err != nil {
+				glog.Fatalf("Configmap %s/%s: Could not update dhparams: %v", ns, name, err)
+			} else {
+				cfg.MainServerSSLDHParam = fileName
+			}
+		}
+	}
+	ngxConfig := nginx.GenerateNginxMainConfig(cfg)
+	ngxc.UpdateMainConfigFile(ngxConfig)
+
 	nginxDone := make(chan error, 1)
 	ngxc.Start(nginxDone)
 
-	nginxConfig := nginx.NewDefaultConfig()
 	var nginxAPI *plus.NginxAPIController
 	if *nginxPlus {
 		time.Sleep(500 * time.Millisecond)
@@ -142,8 +164,8 @@ func main() {
 			glog.Fatalf("Failed to create NginxAPIController: %v", err)
 		}
 	}
-	cnf := nginx.NewConfigurator(ngxc, nginxConfig, nginxAPI)
 
+	cnf := nginx.NewConfigurator(ngxc, cfg, nginxAPI)
 	lbc := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()

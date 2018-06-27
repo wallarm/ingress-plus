@@ -178,14 +178,6 @@ func NewNginxController(nginxConfPath string, local bool, healthStatus bool, ngi
 		nginxIngressTemplatePath: nginxIngressTemplatePath,
 	}
 
-	cfg := &NginxMainConfig{
-		ServerNamesHashMaxSize: NewDefaultConfig().MainServerNamesHashMaxSize,
-		ServerTokens:           NewDefaultConfig().ServerTokens,
-		WorkerProcesses:        NewDefaultConfig().MainWorkerProcesses,
-		WorkerConnections:      NewDefaultConfig().MainWorkerConnections,
-	}
-	ngxc.UpdateMainConfigFile(cfg)
-
 	return &ngxc, nil
 }
 
