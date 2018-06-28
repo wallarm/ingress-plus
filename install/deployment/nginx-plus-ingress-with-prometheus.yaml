@@ -14,7 +14,7 @@ spec:
         app: nginx-ingress
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8090"
+        prometheus.io/port: "9113"
     spec:
       serviceAccountName: nginx-ingress
       containers:
@@ -35,11 +35,14 @@ spec:
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
           - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
          #- -v=3 # Enables extensive logging. Useful for trooublshooting.
-      - image: nginxdemos/nginxplus-prometheus-exporter:0.1.0
-        name: nginxplus-prometheus-exporter
+      - image: nginx/nginx-prometheus-exporter:0.1.0
+        name: nginx-prometheus-exporter
+        ports:
+        - name: prometheus
+          containerPort: 9113
         args:
-          - -listen-address
-          - :8090
-          - -plus
-          - -metric-endpoint
+          - -web.listen-address
+          - :9113
+          - -nginx.plus
+          - -nginx.scrape-uri
           - http://127.0.0.1:8080/api
