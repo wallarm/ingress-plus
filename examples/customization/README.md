@@ -37,6 +37,8 @@ The table below summarizes all of the options. For some of them, there are examp
 | `nginx.org/server-tokens` | `server-tokens` | Enables or disables the [server_tokens](http://nginx.org/en/docs/http/ngx_http_core_module.html#server_tokens) directive. Additionally, with the NGINX Plus, you can specify a custom string value, including the empty string value, which disables the emission of the “Server” field. | `True`| |
 | N/A | `main-snippets` | Sets a custom snippet in main context. | N/A | |
 | N/A | `http-snippets` | Sets a custom snippet in http context. | N/A | |
+| N/A | `main-template` | Sets the main NGINX configuration template. | By default the template is read from the file in the container. | [Custom Templates](../custom-templates). |
+| N/A | `ingress-template` | Sets the NGINX configuration template for an Ingress resource. | By default the template is read from the file on the container. | [Custom Templates](../custom-templates). |
 | `nginx.org/location-snippets` | `location-snippets` | Sets a custom snippet in location context. | N/A | |
 | `nginx.org/server-snippets` | `server-snippets` | Sets a custom snippet in server context. | N/A | |
 | `nginx.org/lb-method` | `lb-method` | Sets the [load balancing method](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#choosing-a-load-balancing-method). To use the round-robin method, specify `"round_robin"`. | `"least_conn"` | |

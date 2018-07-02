@@ -27,19 +27,21 @@ const JWTKeyAnnotation = "nginx.com/jwt-key"
 
 // Configurator transforms an Ingress resource into NGINX Configuration
 type Configurator struct {
-	nginx     *NginxController
-	config    *Config
-	nginxAPI  *plus.NginxAPIController
-	ingresses map[string]*IngressEx
+	nginx            *NginxController
+	config           *Config
+	nginxAPI         *plus.NginxAPIController
+	ingresses        map[string]*IngressEx
+	templateExecutor *TemplateExecutor
 }
 
 // NewConfigurator creates a new Configurator
-func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *plus.NginxAPIController) *Configurator {
+func NewConfigurator(nginx *NginxController, config *Config, nginxAPI *plus.NginxAPIController, templateExecutor *TemplateExecutor) *Configurator {
 	cnf := Configurator{
-		nginx:     nginx,
-		config:    config,
-		nginxAPI:  nginxAPI,
-		ingresses: make(map[string]*IngressEx),
+		nginx:            nginx,
+		config:           config,
+		nginxAPI:         nginxAPI,
+		ingresses:        make(map[string]*IngressEx),
+		templateExecutor: templateExecutor,
 	}
 
 	return &cnf
@@ -60,12 +62,17 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) error {
 	return nil
 }
 
-func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) {
+func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) error {
 	pems, jwtKeyFileName := cnf.updateSecrets(ingEx)
 	nginxCfg := cnf.generateNginxCfg(ingEx, pems, jwtKeyFileName)
 	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
-	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
+	if err != nil {
+		return fmt.Errorf("Error generating Ingress Config %v: %v", name, err)
+	}
+	cnf.nginx.UpdateIngressConfigFile(name, content)
 	cnf.ingresses[name] = ingEx
+	return nil
 }
 
 // AddOrUpdateMergableIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types
@@ -78,11 +85,16 @@ func (cnf *Configurator) AddOrUpdateMergableIngress(mergeableIngs *MergeableIngr
 	return nil
 }
 
-func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) {
+func (cnf *Configurator) addOrUpdateMergableIngress(mergeableIngs *MergeableIngresses) error {
 	nginxCfg := cnf.generateNginxCfgForMergeableIngresses(mergeableIngs)
 	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
-	cnf.nginx.AddOrUpdateIngress(name, nginxCfg)
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
+	if err != nil {
+		return fmt.Errorf("Error generating Ingress Config %v: %v", name, err)
+	}
+	cnf.nginx.UpdateIngressConfigFile(name, content)
 	cnf.ingresses[name] = mergeableIngs.Master
+	return nil
 }
 
 func (cnf *Configurator) generateNginxCfgForMergeableIngresses(mergeableIngs *MergeableIngresses) IngressNginxConfig {
@@ -1047,15 +1059,37 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, merg
 		}
 		config.MainServerSSLDHParam = fileName
 	}
-	mainCfg := GenerateNginxMainConfig(config)
-	cnf.nginx.UpdateMainConfigFile(mainCfg)
 
-	for _, ingEx := range ingExes {
-		cnf.addOrUpdateIngress(ingEx)
+	if config.MainTemplate != nil {
+		err := cnf.templateExecutor.UpdateMainTemplate(config.MainTemplate)
+		if err != nil {
+			return fmt.Errorf("Error when parsing the main template: %v", err)
+		}
+	}
+	if config.IngressTemplate != nil {
+		err := cnf.templateExecutor.UpdateIngressTemplate(config.IngressTemplate)
+		if err != nil {
+			return fmt.Errorf("Error when parsing the ingress template: %v", err)
+		}
 	}
 
+	mainCfg := GenerateNginxMainConfig(config)
+
+	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
+	if err != nil {
+		return fmt.Errorf("Error when writing main Config")
+	}
+	cnf.nginx.UpdateMainConfigFile(mainCfgContent)
+
+	for _, ingEx := range ingExes {
+		if err := cnf.addOrUpdateIngress(ingEx); err != nil {
+			return err
+		}
+	}
 	for _, mergeableIng := range mergeableIngs {
-		cnf.addOrUpdateMergableIngress(mergeableIng)
+		if err := cnf.addOrUpdateMergableIngress(mergeableIng); err != nil {
+			return err
+		}
 	}
 
 	if err := cnf.nginx.Reload(); err != nil {

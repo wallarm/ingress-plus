@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"text/template"
 
 	"github.com/golang/glog"
 )
@@ -18,14 +17,11 @@ const dhparamFilename = "dhparam.pem"
 const TLSSecretFileMode = 0600
 const jwkSecretFileMode = 0644
 
-// NginxController Updates NGINX configuration, starts and reloads NGINX
+// NginxController updates NGINX configuration, starts and reloads NGINX
 type NginxController struct {
-	nginxConfdPath           string
-	nginxSecretsPath         string
-	local                    bool
-	healthStatus             bool
-	nginxConfTemplatePath    string
-	nginxIngressTemplatePath string
+	nginxConfdPath   string
+	nginxSecretsPath string
+	local            bool
 }
 
 // IngressNginxConfig describes an NGINX configuration
@@ -170,12 +166,9 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 // NewNginxController creates a NGINX controller
 func NewNginxController(nginxConfPath string, local bool, healthStatus bool, nginxConfTemplatePath string, nginxIngressTemplatePath string) (*NginxController, error) {
 	ngxc := NginxController{
-		nginxConfdPath:           path.Join(nginxConfPath, "conf.d"),
-		nginxSecretsPath:         path.Join(nginxConfPath, "secrets"),
-		local:                    local,
-		healthStatus:             healthStatus,
-		nginxConfTemplatePath:    nginxConfTemplatePath,
-		nginxIngressTemplatePath: nginxIngressTemplatePath,
+		nginxConfdPath:   path.Join(nginxConfPath, "conf.d"),
+		nginxSecretsPath: path.Join(nginxConfPath, "secrets"),
+		local:            local,
 	}
 
 	return &ngxc, nil
@@ -192,14 +185,6 @@ func (nginx *NginxController) DeleteIngress(name string) {
 			glog.Warningf("Failed to delete %v: %v", filename, err)
 		}
 	}
-}
-
-// AddOrUpdateIngress creates or updates a file with
-// the specified configuration for the specified ingress
-func (nginx *NginxController) AddOrUpdateIngress(name string, config IngressNginxConfig) {
-	glog.V(3).Infof("Updating NGINX configuration")
-	filename := nginx.getIngressNginxConfigFileName(name)
-	nginx.templateIt(config, filename)
 }
 
 // AddOrUpdateDHParam creates the servers dhparam.pem file
@@ -275,35 +260,6 @@ func (nginx *NginxController) getSecretFileName(name string) string {
 	return path.Join(nginx.nginxSecretsPath, name)
 }
 
-func (nginx *NginxController) templateIt(config IngressNginxConfig, filename string) {
-	tmpl, err := template.New(nginx.nginxIngressTemplatePath).ParseFiles(nginx.nginxIngressTemplatePath)
-	if err != nil {
-		glog.Fatalf("Failed to parse template file: %v", err)
-	}
-
-	glog.V(3).Infof("Writing NGINX conf to %v", filename)
-
-	if glog.V(3) {
-		tmpl.Execute(os.Stdout, config)
-	}
-
-	if !nginx.local {
-		w, err := os.Create(filename)
-		if err != nil {
-			glog.Fatalf("Failed to open %v: %v", filename, err)
-		}
-		defer w.Close()
-
-		if err := tmpl.Execute(w, config); err != nil {
-			glog.Fatalf("Failed to write template %v", err)
-		}
-	} else {
-		// print conf to stdout here
-	}
-
-	glog.V(3).Infof("NGINX configuration file had been updated")
-}
-
 // Reload reloads NGINX
 func (nginx *NginxController) Reload() error {
 	if !nginx.local {
@@ -376,20 +332,13 @@ func shellOut(cmd string) (err error) {
 	return nil
 }
 
-// UpdateMainConfigFile update the main NGINX configuration file
-func (nginx *NginxController) UpdateMainConfigFile(cfg *NginxMainConfig) {
-	cfg.HealthStatus = nginx.healthStatus
-
-	tmpl, err := template.New(nginx.nginxConfTemplatePath).ParseFiles(nginx.nginxConfTemplatePath)
-	if err != nil {
-		glog.Fatalf("Failed to parse the main config template file: %v", err)
-	}
-
+// UpdateMainConfigFile writes the main NGINX configuration file to the filesystem
+func (nginx *NginxController) UpdateMainConfigFile(cfg []byte) {
 	filename := "/etc/nginx/nginx.conf"
 	glog.V(3).Infof("Writing NGINX conf to %v", filename)
 
-	if glog.V(3) {
-		tmpl.Execute(os.Stdout, cfg)
+	if bool(glog.V(3)) || nginx.local {
+		glog.Info(string(cfg))
 	}
 
 	if !nginx.local {
@@ -397,12 +346,34 @@ func (nginx *NginxController) UpdateMainConfigFile(cfg *NginxMainConfig) {
 		if err != nil {
 			glog.Fatalf("Failed to open %v: %v", filename, err)
 		}
-		defer w.Close()
-
-		if err := tmpl.Execute(w, cfg); err != nil {
-			glog.Fatalf("Failed to write template %v", err)
+		_, err = w.Write(cfg)
+		if err != nil {
+			glog.Fatalf("Failed to write to %v: %v", filename, err)
 		}
+		defer w.Close()
+	}
+	glog.V(3).Infof("The main NGINX config file has been updated")
+}
+
+// UpdateIngressConfigFile writes the Ingress configuration file to the filesystem
+func (nginx *NginxController) UpdateIngressConfigFile(name string, cfg []byte) {
+	filename := nginx.getIngressNginxConfigFileName(name)
+	glog.V(3).Infof("Writing Ingress conf to %v", filename)
+
+	if bool(glog.V(3)) || nginx.local {
+		glog.Info(string(cfg))
 	}
 
-	glog.V(3).Infof("The main NGINX configuration file had been updated")
+	if !nginx.local {
+		w, err := os.Create(filename)
+		if err != nil {
+			glog.Fatalf("Failed to open %v: %v", filename, err)
+		}
+		_, err = w.Write(cfg)
+		if err != nil {
+			glog.Fatalf("Failed to write to %v: %v", filename, err)
+		}
+		defer w.Close()
+	}
+	glog.V(3).Infof("The Ingress config file has been updated")
 }

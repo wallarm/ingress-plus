@@ -106,6 +106,10 @@ func main() {
 		nginxConfTemplatePath = "nginx-plus.tmpl"
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 	}
+	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, *healthStatus)
+	if err != nil {
+		glog.Fatalf("Error creating TemplateExecutor: %v", err)
+	}
 	ngxc, _ := nginx.NewNginxController("/etc/nginx/", local, *healthStatus, nginxConfTemplatePath, nginxIngressTemplatePath)
 
 	if *defaultServerSecret != "" {
@@ -150,9 +154,26 @@ func main() {
 				cfg.MainServerSSLDHParam = fileName
 			}
 		}
+		if cfg.MainTemplate != nil {
+			err = templateExecutor.UpdateMainTemplate(cfg.MainTemplate)
+			if err != nil {
+				glog.Fatalf("Error updating NGINX main template: %v", err)
+			}
+		}
+		if cfg.IngressTemplate != nil {
+			err = templateExecutor.UpdateIngressTemplate(cfg.IngressTemplate)
+			if err != nil {
+				glog.Fatalf("Error updating ingress template: %v", err)
+			}
+		}
 	}
+
 	ngxConfig := nginx.GenerateNginxMainConfig(cfg)
-	ngxc.UpdateMainConfigFile(ngxConfig)
+	content, err := templateExecutor.ExecuteMainConfigTemplate(ngxConfig)
+	if err != nil {
+		glog.Fatalf("Error generating NGINX main config: %v", err)
+	}
+	ngxc.UpdateMainConfigFile(content)
 
 	nginxDone := make(chan error, 1)
 	ngxc.Start(nginxDone)
@@ -166,7 +187,7 @@ func main() {
 		}
 	}
 
-	cnf := nginx.NewConfigurator(ngxc, cfg, nginxAPI)
+	cnf := nginx.NewConfigurator(ngxc, cfg, nginxAPI, templateExecutor)
 	lbc := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()

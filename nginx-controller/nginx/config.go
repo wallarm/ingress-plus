@@ -60,6 +60,9 @@ type Config struct {
 	MainServerSSLDHParam             string
 	MainServerSSLDHParamFileContent  *string
 
+	MainTemplate    *string
+	IngressTemplate *string
+
 	JWTRealm    string
 	JWTKey      string
 	JWTToken    string
@@ -336,6 +339,12 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 	}
 	if failTimeout, exists := cfgm.Data["fail-timeout"]; exists {
 		cfg.FailTimeout = failTimeout
+	}
+	if mainTemplate, exists := cfgm.Data["main-template"]; exists {
+		cfg.MainTemplate = &mainTemplate
+	}
+	if ingressTemplate, exists := cfgm.Data["ingress-template"]; exists {
+		cfg.IngressTemplate = &ingressTemplate
 	}
 	return cfg
 }
