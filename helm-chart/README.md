@@ -82,6 +82,11 @@ Parameter | Description | Default
 `controller.watchNamespace` | Namespace to watch for Ingress resources. By default the Ingress controller watches all namespaces. | ""
 `controller.healthStatus` | Add a location "/nginx-health" to the default server. The location responds with the 200 status code for any request. Useful for external health-checking of the Ingress controller. | false
 `rbac.create` | Configures RBAC. | true
+`prometheues.create` | Deploys a Prometheus exporter container within the Ingress controller pod. Requires NGINX Plus. `controller.nginxplus` must be set to `true`. | false
+`prometheus.port` | Configures the port to scrape the metrics. | 9113
+`prometheus.image.repository` | The image repository of the Prometheus exporter. | nginx/nginx-prometheus-exporter
+`prometheus.image.tag` | The tag of the Prometheus exporter image. | 0.1.0
+`prometheus.image.pullPolicy` | The pull policy for the Prometheus exporter image. | IfNotPresent
 
 Example:
 ```
