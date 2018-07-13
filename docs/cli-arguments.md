@@ -17,12 +17,17 @@ Usage of ./nginx-ingress:
 	- i.e. have the annotation "kubernetes.io/ingress.class" equal to the class. Additionally,
 	the Ingress controller processes Ingress resources that do not have that annotation,
 	which can be disabled by setting the "-use-ingress-class-only" flag (default "nginx")
+  -ingress-template-path string
+    	Path to the ingress NGINX configuration template for an ingress resource.
+	(default for NGINX "nginx.ingress.tmpl"; default for NGINX Plus "nginx-plus.ingress.tmpl")
   -log_backtrace_at value
     	when logging hits line file:N, emit a stack trace
   -log_dir string
     	If non-empty, write log files in this directory
   -logtostderr
     	log to standard error instead of files
+  -main-template-path string
+    	Path to the main NGINX configuration template. (default for NGINX "nginx.tmpl"; default for NGINX Plus "nginx-plus.tmpl")
   -nginx-configmaps string
     	A ConfigMap resource for customizing NGINX configuration. If a ConfigMap is set,
 	but the Ingress controller is not able to fetch it from Kubernetes API, the Ingress controller will fail to start.

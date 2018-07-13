@@ -61,6 +61,13 @@ var (
 	the file "/etc/nginx/secrets/default" does not exist, the Ingress controller will fail to start`)
 
 	versionFlag = flag.Bool("version", false, "Print the version and git-commit hash and exit")
+
+	mainTemplatePath = flag.String("main-template-path", "",
+		`Path to the main NGINX configuration template. (default for NGINX "nginx.tmpl"; default for NGINX Plus "nginx-plus.tmpl")`)
+
+	ingressTemplatePath = flag.String("ingress-template-path", "",
+		`Path to the ingress NGINX configuration template for an ingress resource.
+	(default for NGINX "nginx.ingress.tmpl"; default for NGINX Plus "nginx-plus.ingress.tmpl")`)
 )
 
 func main() {
@@ -106,6 +113,14 @@ func main() {
 		nginxConfTemplatePath = "nginx-plus.tmpl"
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 	}
+
+	if *mainTemplatePath != "" {
+		nginxConfTemplatePath = *mainTemplatePath
+	}
+	if *ingressTemplatePath != "" {
+		nginxIngressTemplatePath = *ingressTemplatePath
+	}
+
 	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, *healthStatus)
 	if err != nil {
 		glog.Fatalf("Error creating TemplateExecutor: %v", err)
