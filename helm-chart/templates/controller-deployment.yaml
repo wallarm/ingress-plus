@@ -17,10 +17,12 @@ spec:
     metadata:
       labels:
         app: {{ .Values.controller.name | trunc 63 }}
+{{- if .Values.prometheus }}
 {{- if and (.Values.controller.nginxplus)  (.Values.prometheus.create) }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ .Values.prometheus.port }}"
+{{- end }}
 {{- end }}
     spec:
 {{- if .Values.controller.serviceAccountName }}
@@ -63,6 +65,7 @@ spec:
 {{- if .Values.controller.healthStatus }}
           - -health-status
 {{- end }}
+{{- if .Values.prometheus }}
 {{- if and (.Values.controller.nginxplus)  (.Values.prometheus.create) }}
       - image: "{{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}"
         name: nginx-prometheus-exporter
@@ -76,5 +79,6 @@ spec:
           - -nginx.plus
           - -nginx.scrape-uri
           - http://127.0.0.1:8080/api
+{{- end }}
 {{- end }}
 {{- end }}
