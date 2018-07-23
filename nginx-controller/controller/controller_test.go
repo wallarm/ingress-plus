@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"testing"
 	"time"
@@ -825,5 +826,114 @@ func TestGetServicePortForIngressPort(t *testing.T) {
 	svcPort = lbc.getServicePortForIngressPort(ingSvcPort, &svc)
 	if svcPort != nil {
 		t.Errorf("Mismatched strings should not return port: %+v", svcPort)
+	}
+}
+
+func TestFindIngressesForSecret(t *testing.T) {
+	testCases := []struct {
+		secretName       string
+		secretNamespace  string
+		ingressName      string
+		ingressNamespace string
+		tlsSecretName    string
+		expectResult     bool
+	}{
+		{"tls-secret1", "namespace1", "my-ingress1", "namespace1", "tls-secret1", true},  // Try find secret in correct namespace - pass
+		{"tls-secret2", "namespace1", "my-ingress2", "namespace2", "tls-secret2", false}, // Try find secret in wrong namespace - err
+		{"no-match3", "namespace1", "not-ingress3", "namespace1", "tls-xxx3", false},     // Try find secret that doesn't exist - err
+	}
+
+	for _, test := range testCases {
+		fakeClient := fake.NewSimpleClientset()
+
+		templateExecutor, err := nginx.NewTemplateExecutor("../nginx/templates/nginx-plus.tmpl", "../nginx/templates/nginx-plus.ingress.tmpl", true)
+		if err != nil {
+			t.Errorf("templateExecuter could not start: %v", err)
+		}
+		ngxc, err := nginx.NewNginxController("/etc/nginx", true, true, "../nginx/templates/nginx-plus.tmpl", "../nginx/templates/nginx-plus.ingress.tmpl")
+		if err != nil {
+			t.Errorf("NGINX Controller could not start: %v", err)
+		}
+		apiCtrl, err := plus.NewNginxAPIController(&http.Client{}, "", true)
+		if err != nil {
+			t.Errorf("NGINX API Controller could not start: %v", err)
+		}
+
+		cnf := nginx.NewConfigurator(ngxc, &nginx.Config{}, apiCtrl, templateExecutor)
+		lbc := LoadBalancerController{
+			client:       fakeClient,
+			ingressClass: "nginx",
+			cnf:          cnf,
+			nginxPlus:    true,
+		}
+
+		lbc.ingLister.Store, _ = cache.NewInformer(
+			cache.NewListWatchFromClient(lbc.client.ExtensionsV1beta1().RESTClient(), "ingresses", "default", fields.Everything()),
+			&extensions.Ingress{}, time.Duration(1), nil)
+
+		lbc.secrLister.Store, lbc.secrController = cache.NewInformer(
+			cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "secrets", "default", fields.Everything()),
+			&v1.Secret{}, time.Duration(1), nil)
+
+		var testIngresses = []extensions.Ingress{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      test.ingressName,
+					Namespace: test.ingressNamespace,
+				},
+				Spec: extensions.IngressSpec{
+					TLS: []extensions.IngressTLS{
+						extensions.IngressTLS{
+							SecretName: test.tlsSecretName,
+						},
+					},
+				},
+			},
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      test.ingressName,
+					Namespace: test.ingressNamespace,
+					Annotations: map[string]string{
+						nginx.JWTKeyAnnotation: test.tlsSecretName,
+					},
+				},
+			},
+		}
+
+		for _, ing := range testIngresses {
+			ngxIngress := &nginx.IngressEx{Ingress: &ing}
+
+			secret := &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      test.secretName,
+					Namespace: test.secretNamespace,
+				},
+			}
+			ngxIngress.TLSSecrets = make(map[string]*v1.Secret)
+			ngxIngress.TLSSecrets[test.tlsSecretName] = secret
+
+			err = cnf.AddOrUpdateIngress(ngxIngress)
+			if err != nil {
+				t.Errorf("Ingress was not added: %v", err)
+			}
+
+			lbc.ingLister.Add(&ing)
+
+			ingresses, err := lbc.findIngressesForSecret(test.secretNamespace, test.secretName)
+			if err != nil {
+				t.Errorf("Couldn't list Ingress resource: %v", err)
+			}
+
+			if len(ingresses) > 0 {
+				if !test.expectResult {
+					t.Errorf("Expected no ingresses. Got: %v/%v", ingresses[0].Namespace, ingresses[0].Name)
+				}
+				if ingresses[0].Name != test.ingressName || ingresses[0].Namespace != test.ingressNamespace {
+					t.Errorf("Expected: %v/%v. Got: %v/%v.", test.ingressNamespace, test.ingressName, ingresses[0].Namespace, ingresses[0].Name)
+				}
+			} else if test.expectResult {
+				t.Errorf("Expected %v/%v. Got: No ingresses. %v", test.ingressNamespace, test.ingressName, err)
+			}
+		}
 	}
 }

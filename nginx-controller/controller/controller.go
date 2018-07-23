@@ -757,13 +757,13 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 		return
 	}
 
-	_, name, err := ParseNamespaceName(key)
+	namespace, name, err := ParseNamespaceName(key)
 	if err != nil {
 		glog.Warningf("Secret key %v is invalid: %v", key, err)
 		return
 	}
 
-	ings, err := lbc.findIngressesForSecret(name)
+	ings, err := lbc.findIngressesForSecret(namespace, name)
 	if err != nil {
 		glog.Warningf("Failed to find Ingress resources for Secret %v: %v", key, err)
 		lbc.syncQueue.requeueAfter(task, err, 5*time.Second)
@@ -780,7 +780,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 
 		for _, ing := range ings {
 			lbc.syncQueue.enqueue(&ing)
-			lbc.recorder.Eventf(&ing, api_v1.EventTypeWarning, "Rejected", "%v/%v was rejected due to deleted Secret %v: %v", ing.Namespace, ing.Name, key)
+			lbc.recorder.Eventf(&ing, api_v1.EventTypeWarning, "Rejected", "%v/%v was rejected due to deleted Secret %v", ing.Namespace, ing.Name, key)
 		}
 
 		if key == lbc.defaultServerSecret {
@@ -839,7 +839,7 @@ func (lbc *LoadBalancerController) syncSecret(task Task) {
 	}
 }
 
-func (lbc *LoadBalancerController) findIngressesForSecret(secret string) ([]extensions.Ingress, error) {
+func (lbc *LoadBalancerController) findIngressesForSecret(secretNamespace string, secretName string) ([]extensions.Ingress, error) {
 	res := []extensions.Ingress{}
 	ings, err := lbc.ingLister.List()
 	if err != nil {
@@ -848,6 +848,10 @@ func (lbc *LoadBalancerController) findIngressesForSecret(secret string) ([]exte
 
 items:
 	for _, ing := range ings.Items {
+		if ing.Namespace != secretNamespace {
+			continue
+		}
+
 		if !lbc.isNginxIngress(&ing) {
 			continue
 		}
@@ -855,14 +859,14 @@ items:
 			continue
 		}
 		for _, tls := range ing.Spec.TLS {
-			if tls.SecretName == secret {
+			if tls.SecretName == secretName {
 				res = append(res, ing)
 				continue items
 			}
 		}
 		if lbc.nginxPlus {
 			if jwtKey, exists := ing.Annotations[nginx.JWTKeyAnnotation]; exists {
-				if jwtKey == secret {
+				if jwtKey == secretName {
 					res = append(res, ing)
 				}
 			}
