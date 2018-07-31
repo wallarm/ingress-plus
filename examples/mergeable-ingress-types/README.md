@@ -57,6 +57,10 @@ load balancing for that application using Ingress resources with the `nginx.org/
     ```
     $ IC_IP=XXX.YYY.ZZZ.III
     ```
+3. Save the HTTPS port of the Ingress controller into a shell variable:
+    ```
+    $ IC_HTTPS_PORT=<port number>
+    ```
 
 ## 2. Deploy the Cafe Application
 
@@ -94,20 +98,18 @@ certificate and the --resolve option to set the Host header of a request with ``
     
     To get coffee:
     ```
-    $ curl --resolve cafe.example.com:443:$IC_IP https://cafe.example.com/coffee --insecure
+    $ curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure
     Server address: 10.12.0.18:80
     Server name: coffee-7586895968-r26zn
     ...
     ```
     If you prefer tea:
     ```
-    $ curl --resolve cafe.example.com:443:$IC_IP https://cafe.example.com/tea --insecure
+    $ curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
     Server address: 10.12.0.19:80
     Server name: tea-7cd44fcb4d-xfw2x
     ...
     ```
-
-    **Note**: If you're using a NodePort service to expose the Ingress controller, replace port 443 in the commands above with the node port that corresponds to port 443.
     
 ## 5. Examine the Configuration
 
