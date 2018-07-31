@@ -36,7 +36,7 @@ If RBAC is enabled in your cluster, create a cluster role and bind it to the ser
 $ kubectl apply -f rbac/rbac.yaml
 ```
 
-**Note**: To perform this step you must be a cluster admin. On GCE you'll need to [assign yourself that role](https://github.com/coreos/prometheus-operator/blob/master/Documentation/troubleshooting.md)
+**Note**: To perform this step you must be a cluster admin. Follow the documentation of your Kubernetes platform to configure the admin access. For GKE, see the [Role-Based Access Control](https://cloud.google.com/kubernetes-engine/docs/how-to/role-based-access-control) doc.
 
 ## 3. Deploy the Ingress Controller
 
