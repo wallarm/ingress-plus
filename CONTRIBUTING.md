@@ -31,7 +31,7 @@ Read the [documentation](https://github.com/nginxinc/kubernetes-ingress/tree/mas
 
 * This Ingress Controller is written in Go and supports both the open source NGINX software and NGINX Plus.
 * The main code resides under `/nginx-controller`
-* The project dependencies reside in the `/vendor`. We use  [glide](https://github.com/Masterminds/glide) for managing dependencies.
+* The project dependencies reside in the `/vendor`. We use  [dep](https://github.com/golang/dep) for managing dependencies.
 
 ## Contributing
 
