@@ -120,6 +120,8 @@ const (
 	ConfigMap
 	// Secret resource
 	Secret
+	// Service resource
+	Service
 )
 
 // Task is an element of a taskQueue
@@ -140,6 +142,8 @@ func NewTask(key string, obj interface{}) (Task, error) {
 		k = ConfigMap
 	case *api_v1.Secret:
 		k = Secret
+	case *api_v1.Service:
+		k = Service
 	default:
 		return Task{}, fmt.Errorf("Unknow type: %v", t)
 	}

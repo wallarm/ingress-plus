@@ -8,18 +8,28 @@ rules:
   resources:
   - services
   - endpoints
-  verbs: 
+  verbs:
+  - get
   - list
   - watch
-- apiGroups: 
+- apiGroups:
   - ""
   resources:
-  - configmaps
   - secrets
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
 - apiGroups:
   - ""
   resources:
@@ -40,6 +50,12 @@ rules:
   verbs:
   - list
   - watch
+- apiGroups:
+  - "extensions"
+  resources:
+  - ingresses/status
+  verbs:
+  - update
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -51,5 +67,5 @@ subjects:
   namespace: nginx-ingress
 roleRef:
   kind: ClusterRole
-  name: nginx-ingress 
+  name: nginx-ingress
   apiGroup: rbac.authorization.k8s.io

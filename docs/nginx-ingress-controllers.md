@@ -31,7 +31,7 @@ The table below summarizes the key difference between nginxinc/kubernetes-ingres
 | TLS certificate and key for the default server | Required as a command-line argument/ auto-generated | Required as a command-line argument | Required as a command-line argument |
 | Helm chart | Supported | Supported | Supported |
 | **Operational** |
-| Reporting the IP address(es) of the Ingress controller into Ingress resources | Supported | Coming soon | Coming soon |
+| Reporting the IP address(es) of the Ingress controller into Ingress resources | Supported | Supported | Supported |
 | Extended Status | Supported via a third-party module | Not supported | Supported |
 | Prometheus Integration | Supported | Not supported | Supported |
 | Dynamic reconfiguration of endpoints (no configuration reloading) | Supported with a third-party Lua module | Not supported | Supported |

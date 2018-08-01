@@ -68,6 +68,16 @@ var (
 	ingressTemplatePath = flag.String("ingress-template-path", "",
 		`Path to the ingress NGINX configuration template for an ingress resource.
 	(default for NGINX "nginx.ingress.tmpl"; default for NGINX Plus "nginx-plus.ingress.tmpl")`)
+
+	externalService = flag.String("external-service", "",
+		`Specifies the name of the service with the type LoadBalancer through which the Ingress controller pods are exposed externally.
+The external address of the service is used when reporting the status of Ingress resources. Requires -report-ingress-status.`)
+
+	reportIngressStatus = flag.Bool("report-ingress-status", false,
+		"Update the address field in the status of Ingresses resources. Requires the -external-service flag, or the 'external-status-address' key in the ConfigMap.")
+
+	leaderElectionEnabled = flag.Bool("enable-leader-election", false,
+		"Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.")
 )
 
 func main() {
@@ -203,7 +213,24 @@ func main() {
 	}
 
 	cnf := nginx.NewConfigurator(ngxc, cfg, nginxAPI, templateExecutor)
-	lbc := controller.NewLoadBalancerController(kubeClient, 30*time.Second, *watchNamespace, cnf, *nginxConfigMaps, *defaultServerSecret, *nginxPlus, *ingressClass, *useIngressClassOnly)
+	controllerNamespace := os.Getenv("POD_NAMESPACE")
+
+	lbcInput := controller.NewLoadBalancerControllerInput{
+		KubeClient:            kubeClient,
+		ResyncPeriod:          30 * time.Second,
+		Namespace:             *watchNamespace,
+		CNF:                   cnf,
+		NginxConfigMaps:       *nginxConfigMaps,
+		DefaultServerSecret:   *defaultServerSecret,
+		NginxPlus:             *nginxPlus,
+		IngressClass:          *ingressClass,
+		UseIngressClassOnly:   *useIngressClassOnly,
+		ExternalServiceName:   *externalService,
+		ControllerNamespace:   controllerNamespace,
+		ReportIngressStatus:   *reportIngressStatus,
+		LeaderElectionEnabled: *leaderElectionEnabled,
+	}
+	lbc := controller.NewLoadBalancerController(lbcInput)
 	go handleTermination(lbc, ngxc, nginxDone)
 	lbc.Run()
 

@@ -137,6 +137,10 @@ Use the public IP of the load balancer to access the Ingress controller. To get 
     ```
     $ nslookup <dns-name>
     ```
+The public IP can be reported in the status of an ingress resource. To enable:
+1. Run the Ingress controller with the `-report-ingress-status` [command-line argument](cli-arguments.md).
+1. Configure the Ingress controller to use the `nginx-ingress` service name as the source of the IP with the arg `-external-service=nginx-ingress`.
+1. See the [Report Ingress Status doc](report-ingress-status.md) for more details.
 
 Read more about the type LoadBalancer [here](https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer).
 

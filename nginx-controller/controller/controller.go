@@ -32,6 +32,7 @@ import (
 	scheme "k8s.io/client-go/kubernetes/scheme"
 	core_v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
 
 	"sort"
@@ -48,53 +49,101 @@ const (
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
-	client               kubernetes.Interface
-	ingController        cache.Controller
-	svcController        cache.Controller
-	endpController       cache.Controller
-	cfgmController       cache.Controller
-	secrController       cache.Controller
-	ingLister            StoreToIngressLister
-	svcLister            cache.Store
-	endpLister           StoreToEndpointLister
-	cfgmLister           StoreToConfigMapLister
-	secrLister           StoreToSecretLister
-	syncQueue            *taskQueue
-	stopCh               chan struct{}
-	cnf                  *nginx.Configurator
-	watchNginxConfigMaps bool
-	nginxPlus            bool
-	recorder             record.EventRecorder
-	defaultServerSecret  string
-	ingressClass         string
-	useIngressClassOnly  bool
+	client                kubernetes.Interface
+	ingController         cache.Controller
+	svcController         cache.Controller
+	endpController        cache.Controller
+	cfgmController        cache.Controller
+	secrController        cache.Controller
+	ingLister             StoreToIngressLister
+	svcLister             cache.Store
+	endpLister            StoreToEndpointLister
+	cfgmLister            StoreToConfigMapLister
+	secrLister            StoreToSecretLister
+	syncQueue             *taskQueue
+	stopCh                chan struct{}
+	cnf                   *nginx.Configurator
+	watchNginxConfigMaps  bool
+	nginxPlus             bool
+	recorder              record.EventRecorder
+	defaultServerSecret   string
+	ingressClass          string
+	useIngressClassOnly   bool
+	statusUpdater         *StatusUpdater
+	leaderElector         *leaderelection.LeaderElector
+	reportIngressStatus   bool
+	leaderElectionEnabled bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
+// NewLoadBalancerControllerInput holds the input needed to call NewLoadBalancerController.
+type NewLoadBalancerControllerInput struct {
+	KubeClient            kubernetes.Interface
+	ResyncPeriod          time.Duration
+	Namespace             string
+	CNF                   *nginx.Configurator
+	NginxConfigMaps       string
+	DefaultServerSecret   string
+	NginxPlus             bool
+	IngressClass          string
+	UseIngressClassOnly   bool
+	ExternalServiceName   string
+	ControllerNamespace   string
+	ReportIngressStatus   bool
+	LeaderElectionEnabled bool
+}
+
 // NewLoadBalancerController creates a controller
-func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod time.Duration, namespace string, cnf *nginx.Configurator, nginxConfigMaps string, defaultServerSecret string, nginxPlus bool, ingressClass string, useIngressClassOnly bool) *LoadBalancerController {
+func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalancerController {
 	lbc := LoadBalancerController{
-		client:              kubeClient,
-		stopCh:              make(chan struct{}),
-		cnf:                 cnf,
-		defaultServerSecret: defaultServerSecret,
-		nginxPlus:           nginxPlus,
-		ingressClass:        ingressClass,
-		useIngressClassOnly: useIngressClassOnly,
+		client:                input.KubeClient,
+		stopCh:                make(chan struct{}),
+		cnf:                   input.CNF,
+		defaultServerSecret:   input.DefaultServerSecret,
+		nginxPlus:             input.NginxPlus,
+		ingressClass:          input.IngressClass,
+		useIngressClassOnly:   input.UseIngressClassOnly,
+		reportIngressStatus:   input.ReportIngressStatus,
+		leaderElectionEnabled: input.LeaderElectionEnabled,
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
-		Interface: core_v1.New(kubeClient.Core().RESTClient()).Events(""),
+		Interface: core_v1.New(input.KubeClient.Core().RESTClient()).Events(""),
 	})
 	lbc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
 		api_v1.EventSource{Component: "nginx-ingress-controller"})
 
 	lbc.syncQueue = NewTaskQueue(lbc.sync)
 
-	glog.V(3).Infof("Nginx Ingress Controller has class: %v", ingressClass)
+	glog.V(3).Infof("Nginx Ingress Controller has class: %v", input.IngressClass)
+
+	lbc.statusUpdater = &StatusUpdater{
+		client:              input.KubeClient,
+		namespace:           input.ControllerNamespace,
+		externalServiceName: input.ExternalServiceName,
+	}
+
+	if input.ReportIngressStatus && input.LeaderElectionEnabled {
+		leaderCallbacks := leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(stop <-chan struct{}) {
+				glog.V(3).Info("started leading, updating ingress status")
+				ingresses, mergeableIngresses := lbc.getManagedIngresses()
+				err := lbc.statusUpdater.UpdateManagedAndMergeableIngresses(ingresses, mergeableIngresses)
+				if err != nil {
+					glog.V(3).Infof("error updating status when starting leading: %v", err)
+				}
+			},
+		}
+
+		var err error
+		lbc.leaderElector, err = NewLeaderElector(input.KubeClient, leaderCallbacks, input.ControllerNamespace)
+		if err != nil {
+			glog.V(3).Infof("Error starting LeaderElection: %v", err)
+		}
+	}
 
 	ingHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -148,10 +197,11 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			curIng := cur.(*extensions.Ingress)
+			oldIng := old.(*extensions.Ingress)
 			if !lbc.isNginxIngress(curIng) {
 				return
 			}
-			if !reflect.DeepEqual(old, cur) {
+			if hasChanges(oldIng, curIng) {
 				if isMinion(curIng) {
 					master, err := lbc.findMasterForMinion(curIng)
 					if err != nil {
@@ -168,12 +218,16 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		},
 	}
 	lbc.ingLister.Store, lbc.ingController = cache.NewInformer(
-		cache.NewListWatchFromClient(lbc.client.Extensions().RESTClient(), "ingresses", namespace, fields.Everything()),
-		&extensions.Ingress{}, resyncPeriod, ingHandlers)
+		cache.NewListWatchFromClient(lbc.client.Extensions().RESTClient(), "ingresses", input.Namespace, fields.Everything()),
+		&extensions.Ingress{}, input.ResyncPeriod, ingHandlers)
 
 	svcHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addSvc := obj.(*api_v1.Service)
+			if lbc.isExternalServiceForStatus(addSvc) {
+				lbc.syncQueue.enqueue(addSvc)
+				return
+			}
 			glog.V(3).Infof("Adding service: %v", addSvc.Name)
 			lbc.enqueueIngressForService(addSvc)
 		},
@@ -191,20 +245,30 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 					return
 				}
 			}
+			if lbc.isExternalServiceForStatus(remSvc) {
+				lbc.syncQueue.enqueue(remSvc)
+				return
+			}
+
 			glog.V(3).Infof("Removing service: %v", remSvc.Name)
 			lbc.enqueueIngressForService(remSvc)
+
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				glog.V(3).Infof("Service %v changed, syncing",
-					cur.(*api_v1.Service).Name)
-				lbc.enqueueIngressForService(cur.(*api_v1.Service))
+				curSvc := cur.(*api_v1.Service)
+				if lbc.isExternalServiceForStatus(curSvc) {
+					lbc.syncQueue.enqueue(curSvc)
+					return
+				}
+				glog.V(3).Infof("Service %v changed, syncing", curSvc.Name)
+				lbc.enqueueIngressForService(curSvc)
 			}
 		},
 	}
 	lbc.svcLister, lbc.svcController = cache.NewInformer(
-		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "services", namespace, fields.Everything()),
-		&api_v1.Service{}, resyncPeriod, svcHandlers)
+		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "services", input.Namespace, fields.Everything()),
+		&api_v1.Service{}, input.ResyncPeriod, svcHandlers)
 
 	endpHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -238,8 +302,8 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		},
 	}
 	lbc.endpLister.Store, lbc.endpController = cache.NewInformer(
-		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "endpoints", namespace, fields.Everything()),
-		&api_v1.Endpoints{}, resyncPeriod, endpHandlers)
+		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "endpoints", input.Namespace, fields.Everything()),
+		&api_v1.Endpoints{}, input.ResyncPeriod, endpHandlers)
 
 	secrHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -287,11 +351,11 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 	}
 
 	lbc.secrLister.Store, lbc.secrController = cache.NewInformer(
-		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "secrets", namespace, fields.Everything()),
-		&api_v1.Secret{}, resyncPeriod, secrHandlers)
+		cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "secrets", input.Namespace, fields.Everything()),
+		&api_v1.Secret{}, input.ResyncPeriod, secrHandlers)
 
-	if nginxConfigMaps != "" {
-		nginxConfigMapsNS, nginxConfigMapsName, err := ParseNamespaceName(nginxConfigMaps)
+	if input.NginxConfigMaps != "" {
+		nginxConfigMapsNS, nginxConfigMapsName, err := ParseNamespaceName(input.NginxConfigMaps)
 		if err != nil {
 			glog.Warning(err)
 		} else {
@@ -337,15 +401,25 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 			}
 			lbc.cfgmLister.Store, lbc.cfgmController = cache.NewInformer(
 				cache.NewListWatchFromClient(lbc.client.Core().RESTClient(), "configmaps", nginxConfigMapsNS, fields.Everything()),
-				&api_v1.ConfigMap{}, resyncPeriod, cfgmHandlers)
+				&api_v1.ConfigMap{}, input.ResyncPeriod, cfgmHandlers)
 		}
 	}
 
 	return &lbc
 }
 
+// hasChanges ignores Status or ResourceVersion changes
+func hasChanges(oldIng *extensions.Ingress, curIng *extensions.Ingress) bool {
+	oldIng.Status.LoadBalancer.Ingress = curIng.Status.LoadBalancer.Ingress
+	oldIng.ResourceVersion = curIng.ResourceVersion
+	return !reflect.DeepEqual(oldIng, curIng)
+}
+
 // Run starts the loadbalancer controller
 func (lbc *LoadBalancerController) Run() {
+	if lbc.leaderElector != nil {
+		go lbc.leaderElector.Run()
+	}
 	go lbc.svcController.Run(lbc.stopCh)
 	go lbc.endpController.Run(lbc.stopCh)
 	go lbc.secrController.Run(lbc.stopCh)
@@ -434,43 +508,18 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	if cfgmExists {
 		cfgm := obj.(*api_v1.ConfigMap)
 		cfg = nginx.ParseConfigMap(cfgm, lbc.nginxPlus)
+
+		lbc.statusUpdater.SaveStatusFromExternalStatus(cfgm.Data["external-status-address"])
 	}
 
-	mergeableIngresses := make(map[string]*nginx.MergeableIngresses)
-	var ingExes []*nginx.IngressEx
-	ings, _ := lbc.ingLister.List()
-	for i := range ings.Items {
-		if !lbc.isNginxIngress(&ings.Items[i]) {
-			continue
-		}
-		if isMinion(&ings.Items[i]) {
-			master, err := lbc.findMasterForMinion(&ings.Items[i])
-			if err != nil {
-				glog.Errorf("Ignoring Ingress %v(Minion): %v", ings.Items[i], err)
-				continue
-			}
-			if !lbc.cnf.HasIngress(master) {
-				continue
-			}
-			if _, exists := mergeableIngresses[master.Name]; !exists {
-				mergeableIngress, err := lbc.createMergableIngresses(master)
-				if err != nil {
-					glog.Errorf("Ignoring Ingress %v(Master): %v", master, err)
-					continue
-				}
-				mergeableIngresses[master.Name] = mergeableIngress
-			}
-			continue
-		}
-		if !lbc.cnf.HasIngress(&ings.Items[i]) {
-			continue
-		}
-		ingEx, err := lbc.createIngress(&ings.Items[i])
-		if err != nil {
-			continue
-		}
+	ingresses, mergeableIngresses := lbc.getManagedIngresses()
+	ingExes := lbc.ingressesToIngressExes(ingresses)
 
-		ingExes = append(ingExes, ingEx)
+	if lbc.reportStatusEnabled() {
+		err = lbc.statusUpdater.UpdateManagedAndMergeableIngresses(ingresses, mergeableIngresses)
+		if err != nil {
+			glog.V(3).Infof("error updating status on ConfigMap change: %v", err)
+		}
 	}
 
 	if err := lbc.cnf.UpdateConfig(cfg, ingExes, mergeableIngresses); err != nil {
@@ -509,6 +558,55 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	}
 }
 
+// getManagedIngresses gets Ingress resources that the IC is currently responsible for
+func (lbc *LoadBalancerController) getManagedIngresses() ([]extensions.Ingress, map[string]*nginx.MergeableIngresses) {
+	mergeableIngresses := make(map[string]*nginx.MergeableIngresses)
+	var managedIngresses []extensions.Ingress
+	ings, _ := lbc.ingLister.List()
+	for i := range ings.Items {
+		ing := ings.Items[i]
+		if !lbc.isNginxIngress(&ing) {
+			continue
+		}
+		if isMinion(&ing) {
+			master, err := lbc.findMasterForMinion(&ing)
+			if err != nil {
+				glog.Errorf("Ignoring Ingress %v(Minion): %v", ing, err)
+				continue
+			}
+			if !lbc.cnf.HasIngress(master) {
+				continue
+			}
+			if _, exists := mergeableIngresses[master.Name]; !exists {
+				mergeableIngress, err := lbc.createMergableIngresses(master)
+				if err != nil {
+					glog.Errorf("Ignoring Ingress %v(Master): %v", master, err)
+					continue
+				}
+				mergeableIngresses[master.Name] = mergeableIngress
+			}
+			continue
+		}
+		if !lbc.cnf.HasIngress(&ing) {
+			continue
+		}
+		managedIngresses = append(managedIngresses, ing)
+	}
+	return managedIngresses, mergeableIngresses
+}
+
+func (lbc *LoadBalancerController) ingressesToIngressExes(ings []extensions.Ingress) []*nginx.IngressEx {
+	var ingExes []*nginx.IngressEx
+	for _, ing := range ings {
+		ingEx, err := lbc.createIngress(&ing)
+		if err != nil {
+			continue
+		}
+		ingExes = append(ingExes, ingEx)
+	}
+	return ingExes
+}
+
 func (lbc *LoadBalancerController) sync(task Task) {
 	glog.V(3).Infof("Syncing %v", task.Key)
 
@@ -523,6 +621,9 @@ func (lbc *LoadBalancerController) sync(task Task) {
 		return
 	case Secret:
 		lbc.syncSecret(task)
+		return
+	case Service:
+		lbc.syncExternalService(task)
 	}
 }
 
@@ -551,6 +652,12 @@ func (lbc *LoadBalancerController) syncIng(task Task) {
 			if err != nil {
 				lbc.syncQueue.requeueAfter(task, err, 5*time.Second)
 				lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "Rejected", "%v was rejected: %v", key, err)
+				if lbc.reportStatusEnabled() {
+					err = lbc.statusUpdater.ClearIngressStatus(*ing)
+					if err != nil {
+						glog.V(3).Infof("error clearing ing status: %v", err)
+					}
+				}
 				return
 			}
 			err = lbc.cnf.AddOrUpdateMergableIngress(mergeableIngExs)
@@ -565,13 +672,24 @@ func (lbc *LoadBalancerController) syncIng(task Task) {
 					lbc.recorder.Eventf(ing, api_v1.EventTypeNormal, "AddedOrUpdated", "Configuration for %v/%v(Minion) was added or updated", minion.Ingress.Namespace, minion.Ingress.Name)
 				}
 			}
+			if lbc.reportStatusEnabled() {
+				err = lbc.statusUpdater.UpdateMergableIngresses(mergeableIngExs)
+				if err != nil {
+					glog.V(3).Infof("error updating ing status: %v", err)
+				}
+			}
 			return
 		}
-
 		ingEx, err := lbc.createIngress(ing)
 		if err != nil {
 			lbc.syncQueue.requeueAfter(task, err, 5*time.Second)
 			lbc.recorder.Eventf(ing, api_v1.EventTypeWarning, "Rejected", "%v was rejected: %v", key, err)
+			if lbc.reportStatusEnabled() {
+				err = lbc.statusUpdater.ClearIngressStatus(*ing)
+				if err != nil {
+					glog.V(3).Infof("error clearing ing status: %v", err)
+				}
+			}
 			return
 		}
 
@@ -581,7 +699,54 @@ func (lbc *LoadBalancerController) syncIng(task Task) {
 		} else {
 			lbc.recorder.Eventf(ing, api_v1.EventTypeNormal, "AddedOrUpdated", "Configuration for %v was added or updated", key)
 		}
+		if lbc.reportStatusEnabled() {
+			err = lbc.statusUpdater.UpdateIngressStatus(*ing)
+			if err != nil {
+				glog.V(3).Infof("error updating ing status: %v", err)
+			}
+		}
 	}
+}
+
+// syncExternalService does not sync all services.
+// We only watch the Service specified by the external-service flag.
+func (lbc *LoadBalancerController) syncExternalService(task Task) {
+	key := task.Key
+	obj, exists, err := lbc.svcLister.GetByKey(key)
+	if err != nil {
+		lbc.syncQueue.requeue(task, err)
+		return
+	}
+	statusIngs, mergableIngs := lbc.getManagedIngresses()
+	if !exists {
+		// service got removed
+		lbc.statusUpdater.ClearStatusFromExternalService()
+	} else {
+		// service added or updated
+		lbc.statusUpdater.SaveStatusFromExternalService(obj.(*api_v1.Service))
+	}
+	if lbc.reportStatusEnabled() {
+		err = lbc.statusUpdater.UpdateManagedAndMergeableIngresses(statusIngs, mergableIngs)
+		if err != nil {
+			glog.Errorf("error updating ingress status in syncExternalService: %v", err)
+		}
+	}
+}
+
+// isExternalServiceForStatus matches the service specified by the external-service arg
+func (lbc *LoadBalancerController) isExternalServiceForStatus(svc *api_v1.Service) bool {
+	return lbc.statusUpdater.namespace == svc.Namespace && lbc.statusUpdater.externalServiceName == svc.Name
+}
+
+// reportStatusEnabled determines if we should attempt to report status
+func (lbc *LoadBalancerController) reportStatusEnabled() bool {
+	if lbc.reportIngressStatus {
+		if lbc.leaderElectionEnabled {
+			return lbc.leaderElector != nil && lbc.leaderElector.IsLeader()
+		}
+		return true
+	}
+	return false
 }
 
 func (lbc *LoadBalancerController) syncSecret(task Task) {

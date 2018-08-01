@@ -9,6 +9,11 @@ Usage of ./nginx-ingress:
 	If not set, certificate and key in the file "/etc/nginx/secrets/default" are used. If a secret is set,
 	but the Ingress controller is not able to fetch it from Kubernetes API or a secret is not set and
 	the file "/etc/nginx/secrets/default" does not exist, the Ingress controller will fail to start
+  -enable-leader-election
+    	Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.
+  -external-service string
+    	Specifies the name of the service with the type LoadBalancer through which the Ingress controller pods are exposed externally.
+    	The external address of the service is used when reporting the status of Ingress resources. Requires -report-ingress-status.
   -health-status
     	Add a location "/nginx-health" to the default server. The location responds with the 200 status code for any request.
 	Useful for external health-checking of the Ingress controller
@@ -35,8 +40,10 @@ Usage of ./nginx-ingress:
   -nginx-plus
     	Enable support for NGINX Plus
   -proxy string
-    	Use a proxy server to connect to Kubernetes API started by "kubectl proxy" command. For testing purposes only.
-	The Ingress controller does not start NGINX and does not write any generated NGINX configuration files to disk
+        Use a proxy server to connect to Kubernetes API started by "kubectl proxy" command. For testing purposes only.
+        The Ingress controller does not start NGINX and does not write any generated NGINX configuration files to disk
+  -report-ingress-status
+    	Update the address field in the status of Ingresses resources. Requires the -external-service flag, or the 'external-status-address' key in the ConfigMap.
   -stderrthreshold value
     	logs at or above this threshold go to stderr
   -use-ingress-class-only
