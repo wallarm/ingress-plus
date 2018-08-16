@@ -28,5 +28,9 @@ controller:
     externalTrafficPolicy: Local
     annotations: {}
   serviceAccountName: nginx-ingress
+  reportIngressStatus:
+    enable: true
+    externalService: nginx-ingress
+    enableLeaderElection: true
 rbac:
   create: true
