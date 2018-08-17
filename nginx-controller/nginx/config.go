@@ -25,6 +25,7 @@ type Config struct {
 	MainServerNamesHashBucketSize string
 	MainServerNamesHashMaxSize    string
 	MainLogFormat                 string
+	MainErrorLogLevel             string
 	MainStreamLogFormat           string
 	ProxyBuffering                bool
 	ProxyBuffers                  string
@@ -92,6 +93,7 @@ func NewDefaultConfig() *Config {
 		MaxFails:                   1,
 		FailTimeout:                "10s",
 		LBMethod:                   "least_conn",
+		MainErrorLogLevel:          "notice",
 	}
 }
 
@@ -257,7 +259,9 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 		sslDHParamFile = strings.Trim(sslDHParamFile, "\n")
 		cfg.MainServerSSLDHParamFileContent = &sslDHParamFile
 	}
-
+	if errorLogLevel, exists := cfgm.Data["error-log-level"]; exists {
+		cfg.MainErrorLogLevel = errorLogLevel
+	}
 	if logFormat, exists := cfgm.Data["log-format"]; exists {
 		cfg.MainLogFormat = logFormat
 	}
