@@ -84,11 +84,11 @@ http {
            return 404;
         }
     }
-  
 
+    {{- if .NginxStatus }}
     # NGINX Plus APIs
     server {
-        listen 8080;
+        listen {{.NginxStatusPort}};
 
         root /usr/share/nginx/html;
 
@@ -97,11 +97,21 @@ http {
         location  = /dashboard.html {
         }
 
+        allow 127.0.0.1;
+        deny all;
+
         location /api {
-            limit_except GET {
-                allow 127.0.0.1;
-                deny all;
-            }
+            api write=off;
+        }
+    }
+    {{- end }}
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/run/nginx-plus-api.sock;
+        access_log off;
+
+        location /api {
             api write=on;
         }
     }

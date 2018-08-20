@@ -82,6 +82,21 @@ http {
         }
     }
 
+    {{- if .NginxStatus }}
+    # stub_status
+    server {
+        listen {{.NginxStatusPort}};
+
+        allow 127.0.0.1;
+        deny all;
+
+        location /stub_status {
+            stub_status;
+        }
+    }
+    {{- end }}
+
+
     include /etc/nginx/conf.d/*.conf;
 }
 
