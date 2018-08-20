@@ -142,6 +142,7 @@ type NginxMainConfig struct {
 	ServerNamesHashBucketSize string
 	ServerNamesHashMaxSize    string
 	LogFormat                 string
+	ErrorLogLevel             string
 	StreamLogFormat           string
 	HealthStatus              bool
 	MainSnippets              []string
