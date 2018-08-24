@@ -482,16 +482,39 @@ func createExpectedConfigForMergeableCafeIngress() IngressNginxConfig {
 
 }
 
-func createTestConfigurator() *Configurator {
-	templateExecutor, _ := NewTemplateExecutor("templates/nginx-plus.tmpl", "templates/nginx-plus.ingress.tmpl", true, true, 8080)
+func createTestConfigurator() (*Configurator, error) {
+	templateExecutor, err := NewTemplateExecutor("templates/nginx-plus.tmpl", "templates/nginx-plus.ingress.tmpl", true, true, 8080)
+	if err != nil {
+		return nil, err
+	}
+	ngxc := NewNginxController("/etc/nginx", true)
+	apiCtrl, err := plus.NewNginxAPIController(&http.Client{}, "", true)
+	if err != nil {
+		return nil, err
+	}
+	return NewConfigurator(ngxc, NewDefaultConfig(), apiCtrl, templateExecutor), nil
+}
+
+func createTestConfiguratorInvalidIngressTemplate() (*Configurator, error) {
+	templateExecutor, err := NewTemplateExecutor("templates/nginx-plus.tmpl", "templates/nginx-plus.ingress.tmpl", true, true, 8080)
+	if err != nil {
+		return nil, err
+	}
+	invalidIngressTemplate := "{{.Upstreams.This.Field.Does.Not.Exist}}"
+	if err := templateExecutor.UpdateIngressTemplate(&invalidIngressTemplate); err != nil {
+		return nil, err
+	}
 	ngxc := NewNginxController("/etc/nginx", true)
 	apiCtrl, _ := plus.NewNginxAPIController(&http.Client{}, "", true)
-	return NewConfigurator(ngxc, NewDefaultConfig(), apiCtrl, templateExecutor)
+	return NewConfigurator(ngxc, NewDefaultConfig(), apiCtrl, templateExecutor), nil
 }
 
 func TestGenerateNginxCfg(t *testing.T) {
 	cafeIngressEx := createCafeIngressEx()
-	cnf := createTestConfigurator()
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
 	expected := createExpectedConfigForCafeIngressEx()
 
 	pems := map[string]string{
@@ -514,7 +537,10 @@ func TestGenerateNginxCfgForJWT(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.example.com"
 	cafeIngressEx.JWTKey = &api_v1.Secret{}
 
-	cnf := createTestConfigurator()
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
 	expected := createExpectedConfigForCafeIngressEx()
 	expected.Servers[0].JWTAuth = &JWTAuth{
 		Key:                  "/etc/nginx/secrets/default-cafe-jwk",
@@ -547,7 +573,10 @@ func TestGenerateNginxCfgForMergeableIngresses(t *testing.T) {
 	mergeableIngresses := createMergeableCafeIngress()
 	expected := createExpectedConfigForMergeableCafeIngress()
 
-	cnf := createTestConfigurator()
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
 
 	result := cnf.generateNginxCfgForMergeableIngresses(mergeableIngresses)
 
@@ -604,7 +633,10 @@ func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 		},
 	}
 
-	cnf := createTestConfigurator()
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
 
 	result := cnf.generateNginxCfgForMergeableIngresses(mergeableIngresses)
 
@@ -616,5 +648,131 @@ func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.Servers[0].JWTRedirectLocations, expected.Servers[0].JWTRedirectLocations) {
 		t.Errorf("generateNginxCfgForMergeableIngresses returned \n%v,  but expected \n%v", result.Servers[0].JWTRedirectLocations, expected.Servers[0].JWTRedirectLocations)
+	}
+}
+
+func TestAddOrUpdateIngress(t *testing.T) {
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+	ingress := createCafeIngressEx()
+	err = cnf.AddOrUpdateIngress(&ingress)
+	if err != nil {
+		t.Errorf("AddOrUpdateIngress returned:  \n%v, but expected: \n%v", err, nil)
+	}
+
+	cnfHasIngress := cnf.HasIngress(ingress.Ingress)
+	if !cnfHasIngress {
+		t.Errorf("AddOrUpdateIngress didn't add ingress successfully. HasIngress returned %v, expected %v", cnfHasIngress, true)
+	}
+}
+
+func TestAddOrUpdateMergeableIngress(t *testing.T) {
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+	mergeableIngess := createMergeableCafeIngress()
+	err = cnf.AddOrUpdateMergeableIngress(mergeableIngess)
+	if err != nil {
+		t.Errorf("AddOrUpdateMergeableIngress returned \n%v, expected \n%v", err, nil)
+	}
+
+	cnfHasMergeableIngress := cnf.HasIngress(mergeableIngess.Master.Ingress)
+	if !cnfHasMergeableIngress {
+		t.Errorf("AddOrUpdateMergeableIngress didn't add mergeable ingress successfully. HasIngress returned %v, expected %v", cnfHasMergeableIngress, true)
+	}
+}
+
+func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
+	cnf, err := createTestConfiguratorInvalidIngressTemplate()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	ingress := createCafeIngressEx()
+	err = cnf.AddOrUpdateIngress(&ingress)
+	if err == nil {
+		t.Errorf("AddOrUpdateIngressFailsWithInvalidTemplate returned \n%v,  but expected \n%v", nil, "template execution error")
+	}
+}
+
+func TestAddOrUpdateMergeableIngressFailsWithInvalidIngressTemplate(t *testing.T) {
+	cnf, err := createTestConfiguratorInvalidIngressTemplate()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	mergeableIngess := createMergeableCafeIngress()
+	err = cnf.AddOrUpdateMergeableIngress(mergeableIngess)
+	if err == nil {
+		t.Errorf("AddOrUpdateMergeableIngress returned \n%v, but expected \n%v", nil, "template execution error")
+	}
+}
+
+func TestUpdateEndpoints(t *testing.T) {
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	ingress := createCafeIngressEx()
+	err = cnf.UpdateEndpoints(&ingress)
+	if err != nil {
+		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
+	}
+
+	// test with OSS Configurator
+	cnf.nginxAPI = nil
+	err = cnf.UpdateEndpoints(&ingress)
+	if err != nil {
+		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
+	}
+}
+
+func TestUpdateEndpointsMergeableIngress(t *testing.T) {
+	cnf, err := createTestConfigurator()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	mergeableIngress := createMergeableCafeIngress()
+	err = cnf.UpdateEndpointsMergeableIngress(mergeableIngress)
+	if err != nil {
+		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
+	}
+
+	// test with OSS Configurator
+	cnf.nginxAPI = nil
+	err = cnf.UpdateEndpointsMergeableIngress(mergeableIngress)
+	if err != nil {
+		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
+	}
+}
+
+func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
+	cnf, err := createTestConfiguratorInvalidIngressTemplate()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	ingress := createCafeIngressEx()
+	err = cnf.UpdateEndpoints(&ingress)
+	if err == nil {
+		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", nil, "template execution error")
+	}
+}
+
+func TestUpdateEndpointsMergeableIngressFailsWithInvalidTemplate(t *testing.T) {
+	cnf, err := createTestConfiguratorInvalidIngressTemplate()
+	if err != nil {
+		t.Errorf("Failed to create a test configurator: %v", err)
+	}
+
+	mergeableIngress := createMergeableCafeIngress()
+	err = cnf.UpdateEndpointsMergeableIngress(mergeableIngress)
+	if err == nil {
+		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", nil, "template execution error")
 	}
 }
