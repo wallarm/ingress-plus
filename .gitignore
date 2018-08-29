@@ -37,3 +37,4 @@ nginx-controller/nginx-controller
 
 # Default certificate and key
 default.pem
+.idea/
