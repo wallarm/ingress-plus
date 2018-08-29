@@ -161,6 +161,18 @@ type NginxMainConfig struct {
 	WorkerShutdownTimeout  string
 	WorkerConnections      string
 	WorkerRlimitNofile     string
+
+	EnableWallarm                    bool
+	WallarmUpstreamService           string
+	WallarmUpstreamConnectAttempts   int64
+	WallarmUpstreamReconnectInterval string
+	WallarmUpstreamMaxFails          int64
+	WallarmUpstreamFailTimeout       int64
+	WallarmAclMapsize                string
+	WallarmProcessTimeLimit          int64
+	WallarmProcessTimeLimitBlock     string
+	WallarmRequestMemoryLimit        string
+	WallarmWorkerRlimitVmem          string
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.

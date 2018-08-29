@@ -73,27 +73,49 @@ type Config struct {
 
 	Ports    []int
 	SSLPorts []int
+
+	MainEnableWallarm                    bool
+	MainWallarmUpstreamService           string
+	MainWallarmUpstreamConnectAttempts   int64
+	MainWallarmUpstreamReconnectInterval string
+	MainWallarmUpstreamMaxFails          int64
+	MainWallarmUpstreamFailTimeout       int64
+	MainWallarmAclMapsize                string
+	MainWallarmProcessTimeLimit          int64
+	MainWallarmProcessTimeLimitBlock     string
+	MainWallarmRequestMemoryLimit        string
+	MainWallarmWorkerRlimitVmem          string
 }
 
 // NewDefaultConfig creates a Config with default values
 func NewDefaultConfig() *Config {
 	return &Config{
-		ServerTokens:               "on",
-		ProxyConnectTimeout:        "60s",
-		ProxyReadTimeout:           "60s",
-		ClientMaxBodySize:          "1m",
-		SSLRedirect:                true,
-		MainServerNamesHashMaxSize: "512",
-		ProxyBuffering:             true,
-		MainWorkerProcesses:        "auto",
-		MainWorkerConnections:      "1024",
-		HSTSMaxAge:                 2592000,
-		Ports:                      []int{80},
-		SSLPorts:                   []int{443},
-		MaxFails:                   1,
-		FailTimeout:                "10s",
-		LBMethod:                   "least_conn",
-		MainErrorLogLevel:          "notice",
+		ServerTokens:                         "on",
+		ProxyConnectTimeout:                  "60s",
+		ProxyReadTimeout:                     "60s",
+		ClientMaxBodySize:                    "1m",
+		SSLRedirect:                          true,
+		MainServerNamesHashMaxSize:           "512",
+		ProxyBuffering:                       true,
+		MainWorkerProcesses:                  "auto",
+		MainWorkerConnections:                "1024",
+		HSTSMaxAge:                           2592000,
+		Ports:                                []int{80},
+		SSLPorts:                             []int{443},
+		MaxFails:                             1,
+		FailTimeout:                          "10s",
+		LBMethod:                             "least_conn",
+		MainErrorLogLevel:                    "notice",
+		MainEnableWallarm:                    false,
+		MainWallarmUpstreamConnectAttempts:   10,
+		MainWallarmUpstreamReconnectInterval: "15s",
+		MainWallarmUpstreamMaxFails:          1,
+		MainWallarmUpstreamFailTimeout:       10,
+		MainWallarmAclMapsize:                "64m",
+		MainWallarmProcessTimeLimit:          1000,
+		MainWallarmProcessTimeLimitBlock:     "attack",
+		MainWallarmRequestMemoryLimit:        "0",
+		MainWallarmWorkerRlimitVmem:          "1g",
 	}
 }
 
@@ -362,5 +384,63 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 			cfg.MainStreamSnippets = mainStreamSnippets
 		}
 	}
+
+	if enableWallarm, exists, err := GetMapKeyAsBool(cfgm.Data, "enable-wallarm", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfg.MainEnableWallarm = enableWallarm
+		}
+	}
+	if ingressTemplate, exists := cfgm.Data["ingress-template"]; exists {
+		cfg.IngressTemplate = &ingressTemplate
+	}
+	if wallarmUpstreamService, exists := cfgm.Data["wallarm-upstream-service"]; exists {
+		cfg.MainWallarmUpstreamService = wallarmUpstreamService
+	}
+	if wallarmUpstreamConnectAttempts, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-connect-attempts", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfg.MainWallarmUpstreamConnectAttempts = wallarmUpstreamConnectAttempts
+		}
+	}
+	if wallarmUpstreamReconnectInterval, exists := cfgm.Data["wallarm-upstream-reconnect-interval"]; exists {
+		cfg.MainWallarmUpstreamReconnectInterval = wallarmUpstreamReconnectInterval
+	}
+	if wallarmUpstreamMaxFails, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-max-fails", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfg.MainWallarmUpstreamMaxFails = wallarmUpstreamMaxFails
+		}
+	}
+	if wallarmUpstreamFailTimeout, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-fail-timeout", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfg.MainWallarmUpstreamFailTimeout = wallarmUpstreamFailTimeout
+		}
+	}
+	if wallarmAclMapsize, exists := cfgm.Data["wallarm-acl-mapsize"]; exists {
+		cfg.MainWallarmAclMapsize = wallarmAclMapsize
+	}
+	if wallarmProcessTimeLimit, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-process-time-limit", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfg.MainWallarmProcessTimeLimit = wallarmProcessTimeLimit
+		}
+	}
+	if wallarmProcessTimeLimitBlock, exists := cfgm.Data["wallarm-process-time-limit-block"]; exists {
+		cfg.MainWallarmProcessTimeLimitBlock = wallarmProcessTimeLimitBlock
+	}
+	if wallarmRequestMemoryLimit, exists := cfgm.Data["wallarm-request-memory-limit"]; exists {
+		cfg.MainWallarmRequestMemoryLimit = wallarmRequestMemoryLimit
+	}
+	if wallarmWorkerRlimitVmem, exists := cfgm.Data["wallarm-worker-rlimit-vmem"]; exists {
+		cfg.MainWallarmWorkerRlimitVmem = wallarmWorkerRlimitVmem
+	}
+
 	return cfg
 }

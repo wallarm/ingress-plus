@@ -1100,6 +1100,18 @@ func GenerateNginxMainConfig(config *Config) *NginxMainConfig {
 		WorkerShutdownTimeout: config.MainWorkerShutdownTimeout,
 		WorkerConnections:     config.MainWorkerConnections,
 		WorkerRlimitNofile:    config.MainWorkerRlimitNofile,
+
+		EnableWallarm:                    config.MainEnableWallarm,
+		WallarmUpstreamService:           config.MainWallarmUpstreamService,
+		WallarmUpstreamConnectAttempts:   config.MainWallarmUpstreamConnectAttempts,
+		WallarmUpstreamReconnectInterval: config.MainWallarmUpstreamReconnectInterval,
+		WallarmUpstreamMaxFails:          config.MainWallarmUpstreamMaxFails,
+		WallarmUpstreamFailTimeout:       config.MainWallarmUpstreamFailTimeout,
+		WallarmAclMapsize:                config.MainWallarmAclMapsize,
+		WallarmProcessTimeLimit:          config.MainWallarmProcessTimeLimit,
+		WallarmProcessTimeLimitBlock:     config.MainWallarmProcessTimeLimitBlock,
+		WallarmRequestMemoryLimit:        config.MainWallarmRequestMemoryLimit,
+		WallarmWorkerRlimitVmem:          config.MainWallarmWorkerRlimitVmem,
 	}
 	return nginxCfg
 }
