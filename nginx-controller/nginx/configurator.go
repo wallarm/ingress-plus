@@ -264,6 +264,7 @@ func (cnf *Configurator) generateNginxCfg(ingEx *IngressEx, pems map[string]stri
 			ServerSnippets:        ingCfg.ServerSnippets,
 			Ports:                 ingCfg.Ports,
 			SSLPorts:              ingCfg.SSLPorts,
+			Wallarm:               ingCfg.Wallarm,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {
@@ -598,6 +599,44 @@ func (cnf *Configurator) createConfig(ingEx *IngressEx) Config {
 		ingCfg.FailTimeout = failTimeout
 	}
 
+	if ingCfg.MainEnableWallarm {
+		ingCfg.Wallarm = NewWallarm()
+		if mode, exists := ingEx.Ingress.Annotations["wallarm.com/mode"]; exists {
+			ingCfg.Wallarm.Mode = mode
+		}
+		if modeAllowOverride, exists := ingEx.Ingress.Annotations["wallarm.com/mode-allow-override"]; exists {
+			ingCfg.Wallarm.ModeAllowOverride = modeAllowOverride
+		}
+		if fallback, exists := ingEx.Ingress.Annotations["wallarm.com/fallback"]; exists {
+			ingCfg.Wallarm.Fallback = fallback
+		}
+		if instance, exists := ingEx.Ingress.Annotations["wallarm.com/instance"]; exists {
+			ingCfg.Wallarm.Instance = instance
+		}
+		if blockPage, exists := ingEx.Ingress.Annotations["wallarm.com/block-page"]; exists {
+			ingCfg.Wallarm.BlockPage = blockPage
+		}
+		if parseResponse, exists := ingEx.Ingress.Annotations["wallarm.com/parse-response"]; exists {
+			ingCfg.Wallarm.ParseResponse = parseResponse
+		}
+		if parseWebsocket, exists := ingEx.Ingress.Annotations["wallarm.com/parse-websocket"]; exists {
+			ingCfg.Wallarm.ParseWebsocket = parseWebsocket
+		}
+		if unpackResponse, exists := ingEx.Ingress.Annotations["wallarm.com/unpack-response"]; exists {
+			ingCfg.Wallarm.UnpackResponse = unpackResponse
+		}
+		if parserDisable, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "wallarm.com/parser-disable", ingEx.Ingress, ","); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				for i, v := range parserDisable {
+					parserDisable[i] = strings.TrimSpace(v)
+				}
+				ingCfg.Wallarm.ParserDisable = parserDisable
+			}
+		}
+	}
+
 	return ingCfg
 }
 
@@ -767,6 +806,7 @@ func createLocation(path string, upstream Upstream, cfg *Config, websocket bool,
 		ProxyBufferSize:      cfg.ProxyBufferSize,
 		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 		LocationSnippets:     cfg.LocationSnippets,
+		Wallarm:              cfg.Wallarm,
 	}
 
 	return loc

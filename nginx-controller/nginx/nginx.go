@@ -63,6 +63,18 @@ type HealthCheck struct {
 	TimeoutSeconds int64
 }
 
+type Wallarm struct {
+	Mode              string
+	ModeAllowOverride string
+	Fallback          string
+	Instance          string
+	BlockPage         string
+	ParseResponse     string
+	ParseWebsocket    string
+	UnpackResponse    string
+	ParserDisable     []string
+}
+
 // Server describes an NGINX server
 type Server struct {
 	ServerSnippets        []string
@@ -96,6 +108,8 @@ type Server struct {
 
 	Ports    []int
 	SSLPorts []int
+
+	Wallarm *Wallarm
 
 	// Used for mergeable types
 	IngressResource string
@@ -132,6 +146,7 @@ type Location struct {
 	ProxyBufferSize      string
 	ProxyMaxTempFileSize string
 	JWTAuth              *JWTAuth
+	Wallarm              *Wallarm
 
 	// Used for mergeable types
 	IngressResource string
@@ -200,6 +215,22 @@ func NewNginxController(nginxConfPath string, local bool) *NginxController {
 	}
 
 	return &ngxc
+}
+
+func NewWallarm() *Wallarm {
+	wallarm := Wallarm{
+		Mode:              "off",
+		ModeAllowOverride: "on",
+		Fallback:          "on",
+		Instance:          "",
+		BlockPage:         "",
+		ParseResponse:     "on",
+		ParseWebsocket:    "off",
+		UnpackResponse:    "on",
+		ParserDisable:     []string{},
+	}
+
+	return &wallarm
 }
 
 // DeleteIngress deletes the configuration file, which corresponds for the

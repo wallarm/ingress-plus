@@ -85,6 +85,8 @@ type Config struct {
 	MainWallarmProcessTimeLimitBlock     string
 	MainWallarmRequestMemoryLimit        string
 	MainWallarmWorkerRlimitVmem          string
+
+	Wallarm *Wallarm
 }
 
 // NewDefaultConfig creates a Config with default values
