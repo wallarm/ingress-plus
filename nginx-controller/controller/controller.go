@@ -49,63 +49,67 @@ const (
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
-	client                kubernetes.Interface
-	ingController         cache.Controller
-	svcController         cache.Controller
-	endpController        cache.Controller
-	cfgmController        cache.Controller
-	secrController        cache.Controller
-	ingLister             StoreToIngressLister
-	svcLister             cache.Store
-	endpLister            StoreToEndpointLister
-	cfgmLister            StoreToConfigMapLister
-	secrLister            StoreToSecretLister
-	syncQueue             *taskQueue
-	stopCh                chan struct{}
-	cnf                   *nginx.Configurator
-	watchNginxConfigMaps  bool
-	nginxPlus             bool
-	recorder              record.EventRecorder
-	defaultServerSecret   string
-	ingressClass          string
-	useIngressClassOnly   bool
-	statusUpdater         *StatusUpdater
-	leaderElector         *leaderelection.LeaderElector
-	reportIngressStatus   bool
-	leaderElectionEnabled bool
+	client                      kubernetes.Interface
+	ingController               cache.Controller
+	svcController               cache.Controller
+	endpController              cache.Controller
+	cfgmController              cache.Controller
+	secrController              cache.Controller
+	ingLister                   StoreToIngressLister
+	svcLister                   cache.Store
+	endpLister                  StoreToEndpointLister
+	cfgmLister                  StoreToConfigMapLister
+	secrLister                  StoreToSecretLister
+	syncQueue                   *taskQueue
+	stopCh                      chan struct{}
+	cnf                         *nginx.Configurator
+	watchNginxConfigMaps        bool
+	nginxConfigMapsName         string
+	nginxPlus                   bool
+	recorder                    record.EventRecorder
+	defaultServerSecret         string
+	ingressClass                string
+	useIngressClassOnly         bool
+	statusUpdater               *StatusUpdater
+	leaderElector               *leaderelection.LeaderElector
+	reportIngressStatus         bool
+	leaderElectionEnabled       bool
+	wallarmTarantoolServiceName string
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewLoadBalancerControllerInput holds the input needed to call NewLoadBalancerController.
 type NewLoadBalancerControllerInput struct {
-	KubeClient            kubernetes.Interface
-	ResyncPeriod          time.Duration
-	Namespace             string
-	CNF                   *nginx.Configurator
-	NginxConfigMaps       string
-	DefaultServerSecret   string
-	NginxPlus             bool
-	IngressClass          string
-	UseIngressClassOnly   bool
-	ExternalServiceName   string
-	ControllerNamespace   string
-	ReportIngressStatus   bool
-	LeaderElectionEnabled bool
+	KubeClient                  kubernetes.Interface
+	ResyncPeriod                time.Duration
+	Namespace                   string
+	CNF                         *nginx.Configurator
+	NginxConfigMaps             string
+	DefaultServerSecret         string
+	NginxPlus                   bool
+	IngressClass                string
+	UseIngressClassOnly         bool
+	ExternalServiceName         string
+	ControllerNamespace         string
+	ReportIngressStatus         bool
+	LeaderElectionEnabled       bool
+	WallarmTarantoolServiceName string
 }
 
 // NewLoadBalancerController creates a controller
 func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalancerController {
 	lbc := LoadBalancerController{
-		client:                input.KubeClient,
-		stopCh:                make(chan struct{}),
-		cnf:                   input.CNF,
-		defaultServerSecret:   input.DefaultServerSecret,
-		nginxPlus:             input.NginxPlus,
-		ingressClass:          input.IngressClass,
-		useIngressClassOnly:   input.UseIngressClassOnly,
-		reportIngressStatus:   input.ReportIngressStatus,
-		leaderElectionEnabled: input.LeaderElectionEnabled,
+		client:                      input.KubeClient,
+		stopCh:                      make(chan struct{}),
+		cnf:                         input.CNF,
+		defaultServerSecret:         input.DefaultServerSecret,
+		nginxPlus:                   input.NginxPlus,
+		ingressClass:                input.IngressClass,
+		useIngressClassOnly:         input.UseIngressClassOnly,
+		reportIngressStatus:         input.ReportIngressStatus,
+		leaderElectionEnabled:       input.LeaderElectionEnabled,
+		wallarmTarantoolServiceName: input.WallarmTarantoolServiceName,
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -346,6 +350,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			glog.Warning(err)
 		} else {
 			lbc.watchNginxConfigMaps = true
+			lbc.nginxConfigMapsName = input.NginxConfigMaps
 
 			cfgmHandlers := cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
@@ -435,6 +440,22 @@ func (lbc *LoadBalancerController) syncEndp(task Task) {
 	}
 
 	if endpExists {
+		svc := lbc.getServiceForEndpoints(obj)
+		svcKey := ""
+		if svc != nil {
+			svcKey = fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
+			if svcKey == lbc.wallarmTarantoolServiceName {
+				cm, exists, err := lbc.cfgmLister.GetByKey(lbc.nginxConfigMapsName)
+				if exists && cm != nil {
+					glog.V(3).Infof("Enqueue cm %v", lbc.nginxConfigMapsName)
+					lbc.syncQueue.enqueue(cm)
+					return
+				}
+				if err != nil {
+					glog.Errorf("Error getting cm %v: %v", lbc.nginxConfigMapsName, err)
+				}
+			}
+		}
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
@@ -494,7 +515,7 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	if cfgmExists {
 		cfgm := obj.(*api_v1.ConfigMap)
 		cfg = nginx.ParseConfigMap(cfgm, lbc.nginxPlus)
-
+		cfg.WallarmTarantoolUpstream = lbc.getWallarmUpstreamService(cfg)
 		lbc.statusUpdater.SaveStatusFromExternalStatus(cfgm.Data["external-status-address"])
 	}
 
@@ -542,6 +563,41 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 			}
 		}
 	}
+}
+
+func (lbc *LoadBalancerController) getWallarmUpstreamService(cfg *nginx.Config) *nginx.Upstream {
+	svc, err := lbc.getService(cfg.MainWallarmUpstreamService)
+	if err != nil {
+		glog.Errorf("Error getting service %v: %v", lbc.wallarmTarantoolServiceName, err)
+		return nil
+	}
+	endps, err := lbc.endpLister.GetServiceEndpoints(svc)
+	if err != nil {
+		glog.V(3).Infof("Error getting endpoints for service %s from the cache: %v", svc.Name, err)
+		return nil
+	}
+	var upsServers []nginx.UpstreamServer
+	for _, subset := range endps.Subsets {
+		for _, port := range subset.Ports {
+			for _, address := range subset.Addresses {
+				upsServers = append(upsServers, nginx.UpstreamServer{
+					Address:     fmt.Sprintf("%v", address.IP),
+					Port:        fmt.Sprintf("%v", port.Port),
+					MaxFails:    cfg.MainWallarmUpstreamMaxFails,
+					FailTimeout: cfg.MainWallarmUpstreamFailTimeout,
+				})
+			}
+		}
+	}
+	if len(upsServers) < 1 {
+		return nil
+	}
+	upstream := nginx.Upstream{
+		Name:            "wallarm-tarantool",
+		UpstreamServers: upsServers,
+	}
+
+	return &upstream
 }
 
 // getManagedIngresses gets Ingress resources that the IC is currently responsible for
@@ -1024,6 +1080,20 @@ func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []ext
 	return ings
 }
 
+func (lbc *LoadBalancerController) getServiceForEndpoints(obj interface{}) *api_v1.Service {
+	endp := obj.(*api_v1.Endpoints)
+	svcKey := endp.GetNamespace() + "/" + endp.GetName()
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
+	if err != nil {
+		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
+		return nil
+	}
+	if !svcExists {
+		return nil
+	}
+	return svcObj.(*api_v1.Service)
+}
+
 func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*nginx.IngressEx, error) {
 	ingEx := &nginx.IngressEx{
 		Ingress: ing,
@@ -1269,6 +1339,19 @@ func (lbc *LoadBalancerController) getTargetPort(svcPort *api_v1.ServicePort, sv
 
 func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensions.IngressBackend, namespace string) (*api_v1.Service, error) {
 	svcKey := namespace + "/" + backend.ServiceName
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if svcExists {
+		return svcObj.(*api_v1.Service), nil
+	}
+
+	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
+}
+
+func (lbc *LoadBalancerController) getService(svcKey string) (*api_v1.Service, error) {
 	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
 	if err != nil {
 		return nil, err

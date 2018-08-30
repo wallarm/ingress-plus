@@ -78,6 +78,9 @@ The external address of the service is used when reporting the status of Ingress
 
 	leaderElectionEnabled = flag.Bool("enable-leader-election", false,
 		"Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.")
+
+	// TODO: Usage text
+	wallarmTarantoolService = flag.String("wallarm-tarantool-service", "", ``)
 )
 
 func main() {
@@ -216,19 +219,20 @@ func main() {
 	controllerNamespace := os.Getenv("POD_NAMESPACE")
 
 	lbcInput := controller.NewLoadBalancerControllerInput{
-		KubeClient:            kubeClient,
-		ResyncPeriod:          30 * time.Second,
-		Namespace:             *watchNamespace,
-		CNF:                   cnf,
-		NginxConfigMaps:       *nginxConfigMaps,
-		DefaultServerSecret:   *defaultServerSecret,
-		NginxPlus:             *nginxPlus,
-		IngressClass:          *ingressClass,
-		UseIngressClassOnly:   *useIngressClassOnly,
-		ExternalServiceName:   *externalService,
-		ControllerNamespace:   controllerNamespace,
-		ReportIngressStatus:   *reportIngressStatus,
-		LeaderElectionEnabled: *leaderElectionEnabled,
+		KubeClient:                  kubeClient,
+		ResyncPeriod:                30 * time.Second,
+		Namespace:                   *watchNamespace,
+		CNF:                         cnf,
+		NginxConfigMaps:             *nginxConfigMaps,
+		DefaultServerSecret:         *defaultServerSecret,
+		NginxPlus:                   *nginxPlus,
+		IngressClass:                *ingressClass,
+		UseIngressClassOnly:         *useIngressClassOnly,
+		ExternalServiceName:         *externalService,
+		ControllerNamespace:         controllerNamespace,
+		ReportIngressStatus:         *reportIngressStatus,
+		LeaderElectionEnabled:       *leaderElectionEnabled,
+		WallarmTarantoolServiceName: *wallarmTarantoolService,
 	}
 	lbc := controller.NewLoadBalancerController(lbcInput)
 	go handleTermination(lbc, ngxc, nginxDone)

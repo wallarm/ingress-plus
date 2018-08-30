@@ -1152,6 +1152,7 @@ func GenerateNginxMainConfig(config *Config) *NginxMainConfig {
 		WallarmProcessTimeLimitBlock:     config.MainWallarmProcessTimeLimitBlock,
 		WallarmRequestMemoryLimit:        config.MainWallarmRequestMemoryLimit,
 		WallarmWorkerRlimitVmem:          config.MainWallarmWorkerRlimitVmem,
+		WallarmTarantoolUpstream:         config.WallarmTarantoolUpstream,
 	}
 	return nginxCfg
 }
@@ -1184,7 +1185,7 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, merg
 
 	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
 	if err != nil {
-		return fmt.Errorf("Error when writing main Config")
+		return fmt.Errorf("Error when writing main Config: %v", err)
 	}
 	cnf.nginx.UpdateMainConfigFile(mainCfgContent)
 

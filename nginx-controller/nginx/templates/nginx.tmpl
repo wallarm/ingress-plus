@@ -34,6 +34,18 @@ http {
     wallarm_worker_rlimit_vmem {{.WallarmWorkerRlimitVmem}};
     {{- end }}
 
+    {{ if $.WallarmTarantoolUpstream }}
+    upstream {{$.WallarmTarantoolUpstream.Name}} {
+        {{if $.WallarmTarantoolUpstream.LBMethod }}{{$.WallarmTarantoolUpstream.LBMethod}};{{end}}
+        {{range $server := $.WallarmTarantoolUpstream.UpstreamServers}}
+        server {{$server.Address}}:{{$server.Port}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}};{{end}}
+
+        keepalive {{ $.WallarmTarantoolUpstream.UpstreamServers | len }};
+    }
+
+    wallarm_tarantool_upstream {{$.WallarmTarantoolUpstream.Name}};
+    {{ end }}
+
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
 

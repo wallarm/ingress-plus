@@ -79,7 +79,7 @@ type Config struct {
 	MainWallarmUpstreamConnectAttempts   int64
 	MainWallarmUpstreamReconnectInterval string
 	MainWallarmUpstreamMaxFails          int64
-	MainWallarmUpstreamFailTimeout       int64
+	MainWallarmUpstreamFailTimeout       string
 	MainWallarmAclMapsize                string
 	MainWallarmProcessTimeLimit          int64
 	MainWallarmProcessTimeLimitBlock     string
@@ -87,6 +87,8 @@ type Config struct {
 	MainWallarmWorkerRlimitVmem          string
 
 	Wallarm *Wallarm
+
+	WallarmTarantoolUpstream *Upstream
 }
 
 // NewDefaultConfig creates a Config with default values
@@ -112,7 +114,7 @@ func NewDefaultConfig() *Config {
 		MainWallarmUpstreamConnectAttempts:   10,
 		MainWallarmUpstreamReconnectInterval: "15s",
 		MainWallarmUpstreamMaxFails:          1,
-		MainWallarmUpstreamFailTimeout:       10,
+		MainWallarmUpstreamFailTimeout:       "10",
 		MainWallarmAclMapsize:                "64m",
 		MainWallarmProcessTimeLimit:          1000,
 		MainWallarmProcessTimeLimitBlock:     "attack",
@@ -417,12 +419,8 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 			cfg.MainWallarmUpstreamMaxFails = wallarmUpstreamMaxFails
 		}
 	}
-	if wallarmUpstreamFailTimeout, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-fail-timeout", cfgm); exists {
-		if err != nil {
-			glog.Error(err)
-		} else {
-			cfg.MainWallarmUpstreamFailTimeout = wallarmUpstreamFailTimeout
-		}
+	if wallarmUpstreamFailTimeout, exists := cfgm.Data["wallarm-upstream-fail-timeout"]; exists {
+		cfg.MainWallarmUpstreamFailTimeout = wallarmUpstreamFailTimeout
 	}
 	if wallarmAclMapsize, exists := cfgm.Data["wallarm-acl-mapsize"]; exists {
 		cfg.MainWallarmAclMapsize = wallarmAclMapsize
