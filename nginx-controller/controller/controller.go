@@ -515,7 +515,10 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	if cfgmExists {
 		cfgm := obj.(*api_v1.ConfigMap)
 		cfg = nginx.ParseConfigMap(cfgm, lbc.nginxPlus)
-		cfg.WallarmTarantoolUpstream = lbc.getWallarmUpstreamService(cfg)
+		cfg.WallarmTarantoolUpstream, err = lbc.getWallarmUpstreamService(cfg)
+		if err != nil {
+			lbc.syncQueue.requeueAfter(task, err, 30*time.Second)
+		}
 		lbc.statusUpdater.SaveStatusFromExternalStatus(cfgm.Data["external-status-address"])
 	}
 
@@ -565,16 +568,17 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	}
 }
 
-func (lbc *LoadBalancerController) getWallarmUpstreamService(cfg *nginx.Config) *nginx.Upstream {
-	svc, err := lbc.getService(cfg.MainWallarmUpstreamService)
+func (lbc *LoadBalancerController) getWallarmUpstreamService(cfg *nginx.Config) (*nginx.Upstream, error) {
+	svc, err := lbc.getService(lbc.wallarmTarantoolServiceName)
 	if err != nil {
 		glog.Errorf("Error getting service %v: %v", lbc.wallarmTarantoolServiceName, err)
-		return nil
+		return nil, err
 	}
+	glog.V(3).Infof("Found service %s", lbc.wallarmTarantoolServiceName)
 	endps, err := lbc.endpLister.GetServiceEndpoints(svc)
 	if err != nil {
-		glog.V(3).Infof("Error getting endpoints for service %s from the cache: %v", svc.Name, err)
-		return nil
+		glog.Errorf("Error getting endpoints for service %s from the cache: %v", svc.Name, err)
+		return nil, err
 	}
 	var upsServers []nginx.UpstreamServer
 	for _, subset := range endps.Subsets {
@@ -590,14 +594,14 @@ func (lbc *LoadBalancerController) getWallarmUpstreamService(cfg *nginx.Config) 
 		}
 	}
 	if len(upsServers) < 1 {
-		return nil
+		return nil, nil
 	}
 	upstream := nginx.Upstream{
 		Name:            "wallarm-tarantool",
 		UpstreamServers: upsServers,
 	}
 
-	return &upstream
+	return &upstream, nil
 }
 
 // getManagedIngresses gets Ingress resources that the IC is currently responsible for

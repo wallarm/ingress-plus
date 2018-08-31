@@ -32,5 +32,40 @@ controller:
     enable: true
     externalService: nginx-ingress
     enableLeaderElection: true
+  wallarm:
+    enabled: false
+    token: ""
+    tarantool:
+      service:
+        annotations: {}
+      replicaCount: 1
+      arena: "0.2"
+      livenessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources: {}
+    metrics:
+      enabled: false
+
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/path: /wallarm-metrics
+          prometheus.io/port: "18080"
+
+        clusterIP: ""
+
+        ## List of IP addresses at which the stats-exporter service is available
+        ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+        ##
+        externalIPs: []
+
+        loadBalancerIP: ""
+        loadBalancerSourceRanges: []
+        servicePort: 9913
+        type: ClusterIP
 rbac:
   create: true

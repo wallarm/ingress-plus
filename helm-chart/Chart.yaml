@@ -1,15 +1,14 @@
-name: nginx-ingress
-version: 0.1.2
+name: wallarm-ingress-plus
+version: 0.99.0
 appVersion: 1.3.0
-description: NGINX Ingress Controller
+description: Wallarm Ingress Controller for NGINX Plus
+icon: https://wallarm.com/assets/images/logo.svg
 sources:
-  - https://github.com/nginxinc/kubernetes-ingress/tree/master/helm-chart
+  - https://github.com/wallarm/ingress-plus/tree/master/helm-chart
 keywords:
   - ingress
   - nginx
 maintainers:
-  - name: Damian Curry
-    email: damian.curry@nginx.com
-  - name: Dean Coakley
-    email: dean.coakley@nginx.com
+  - name: Wallarm Inc.
+    email: support@wallarm.com
 

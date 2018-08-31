@@ -30,4 +30,5 @@ spec:
     name: https
   selector:
     app: {{ .Values.controller.name | trunc 63 }}
+    component: controller
 {{- end }}

@@ -1,0 +1,125 @@
+{{- if .Values.controller.wallarm.enabled }}
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Values.controller.name | trunc 63 }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "kubernetes-ingress.wallarmTarantoolName" . }}
+spec:
+  replicas: {{ .Values.controller.wallarm.tarantool.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.controller.name | trunc 63 }}
+      component: tarantool
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.controller.name | trunc 63 }}
+        component: tarantool
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.controller.wallarm.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.controller.wallarm.imagePullSecrets | indent 8 }}
+      {{- end }}
+      initContainers:
+{{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
+      containers:
+        - name: tarantool
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          imagePullPolicy: "{{ .Values.controller.image.pullPolicy }}"
+          command: ["/usr/bin/tarantool", "/usr/share/wallarm-tarantool/init.lua"]
+          env:
+            - name: LOGFILE
+              value: /dev/stdout
+            - name: SLAB_ALLOC_ARENA
+              value: "{{ .Values.controller.wallarm.tarantool.arena }}"
+            - name: HOST
+              value: "0.0.0.0"
+          livenessProbe:
+            tcpSocket:
+              port: {{ template "kubernetes-ingress.wallarmTarantoolPort" . }}
+            initialDelaySeconds: {{ .Values.controller.wallarm.tarantool.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.controller.wallarm.tarantool.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.controller.wallarm.tarantool.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.controller.wallarm.tarantool.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.controller.wallarm.tarantool.livenessProbe.failureThreshold }}
+          ports:
+            - name: tarantool
+              containerPort: {{ template "kubernetes-ingress.wallarmTarantoolPort" . }}
+              protocol: TCP
+          volumeMounts:
+            - name: wallarm
+              mountPath: /etc/wallarm
+          resources:
+{{ toYaml .Values.controller.wallarm.tarantool.resources | indent 12 }}
+        - name: heartbeat
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["/usr/share/wallarm-common/synccloud"]
+          env:
+          - name: WALLARM_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: token
+                name: {{ template "kubernetes-ingress.wallarmSecret" . }}
+          - name: WALLARM_SYNCNODE
+            value: "no"
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: sync-markers
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 1m 1h /usr/share/wallarm-common/sync-markers -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: export-attacks
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 1m 3h /usr/share/wallarm-common/export-attacks -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: export-counters
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 15s 11m /usr/share/wallarm-common/export-counters -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: export-clusterization-data
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 15s 11m /usr/share/wallarm-common/export-clusterization-data -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: sync-brute-clusters
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 15s 11m /usr/share/wallarm-common/sync-brute-clusters -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+        - name: brute-detect
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          command: ["sh", "-c", "while true; do timeout -k 15s 6m /usr/share/wallarm-common/brute-detect -l STDOUT || true; sleep 60; done"]
+          volumeMounts:
+          - mountPath: /etc/wallarm
+            name: wallarm
+    {{- if .Values.controller.wallarm.tarantool.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.controller.wallarm.tarantool.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.controller.wallarm.tarantool.tolerations }}
+      tolerations:
+{{ toYaml .Values.controller.wallarm.tarantool.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.controller.wallarm.tarantool.affinity }}
+      affinity:
+{{ toYaml .Values.controller.wallarm.tarantool.affinity | indent 8 }}
+    {{- end }}
+      volumes:
+        - name: wallarm
+          emptyDir: {}
+{{- end }}

@@ -13,10 +13,12 @@ spec:
   selector:
     matchLabels:
       app: {{ .Values.controller.name | trunc 63 }}
+      component: controller
   template:
     metadata:
       labels:
         app: {{ .Values.controller.name | trunc 63 }}
+        component: controller
 {{- if .Values.prometheus }}
 {{- if and (.Values.controller.nginxplus)  (.Values.prometheus.create) }}
       annotations:
@@ -29,7 +31,21 @@ spec:
       serviceAccountName: {{ .Values.controller.serviceAccountName }}
 {{- end }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
+{{- if .Values.controller.wallarm.enabled }}
+      initContainers:
+{{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
+{{- end }}
+      volumes:
+        - name: wallarm
+          emptyDir: {}
+        - name: collectd-config
+          configMap:
+            name: {{ .Values.controller.name | trunc 63 }}-collectd
       containers:
+{{- if .Values.controller.wallarm.enabled }}
+{{ include "kubernetes-ingress.wallarmCollectdContainer" . | indent 6 }}
+{{ include "kubernetes-ingress.wallarmSyncnodeContainer" . | indent 6 }}
+{{- end }}
       - image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
         name: {{ .Values.controller.name | trunc 63 }}
         imagePullPolicy: "{{ .Values.controller.image.pullPolicy }}"
@@ -47,7 +63,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        volumeMounts:
+          - name: wallarm
+            mountPath: /etc/wallarm
         args:
+          - -wallarm-tarantool-service={{ .Release.Namespace }}/{{ template "kubernetes-ingress.wallarmTarantoolName" . }}
 {{- if .Values.controller.nginxplus }}
           - -nginx-plus
 {{- end }}
