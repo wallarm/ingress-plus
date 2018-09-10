@@ -962,51 +962,64 @@ func (cnf *Configurator) DeleteIngress(key string) error {
 	return nil
 }
 
-// UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resource
-func (cnf *Configurator) UpdateEndpoints(ingEx *IngressEx) error {
-	err := cnf.addOrUpdateIngress(ingEx)
-	if err != nil {
-		return fmt.Errorf("Error adding or updating ingress %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+// UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resources
+func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
+	reloadPlus := false
+
+	for _, ingEx := range ingExes {
+		err := cnf.addOrUpdateIngress(ingEx)
+		if err != nil {
+			return fmt.Errorf("Error adding or updating ingress %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+		}
+
+		if cnf.isPlus() {
+			err := cnf.updatePlusEndpoints(ingEx)
+			if err != nil {
+				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				reloadPlus = true
+			}
+		}
 	}
 
-	if cnf.isPlus() {
-		err = cnf.updatePlusEndpoints(ingEx)
-		if err == nil {
-			return nil
-		}
-		glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+	if cnf.isPlus() && !reloadPlus {
+		glog.V(3).Info("No need to reload nginx")
+		return nil
 	}
+
 	if err := cnf.nginx.Reload(); err != nil {
-		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+		return fmt.Errorf("Error reloading NGINX when updating endpoints: %v", err)
 	}
 
 	return nil
 }
 
 // UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource
-func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngs *MergeableIngresses) error {
-	err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
-	if err != nil {
-		return fmt.Errorf("Error adding or updating ingress %v/%v: %v", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
-	}
+func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergableIngressesSlice []*MergeableIngresses) error {
+	reloadPlus := false
+	for i := range mergableIngressesSlice {
+		err := cnf.addOrUpdateMergeableIngress(mergableIngressesSlice[i])
+		if err != nil {
+			return fmt.Errorf("Error adding or updating mergeableIngress %v/%v: %v", mergableIngressesSlice[i].Master.Ingress.Namespace, mergableIngressesSlice[i].Master.Ingress.Name, err)
+		}
 
-	if cnf.isPlus() {
-		for _, ing := range mergeableIngs.Minions {
-			err = cnf.updatePlusEndpoints(ing)
-			if err != nil {
-				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
-				break
+		if cnf.isPlus() {
+			for _, ing := range mergableIngressesSlice[i].Minions {
+				err = cnf.updatePlusEndpoints(ing)
+				if err != nil {
+					glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+					reloadPlus = true
+				}
 			}
 		}
-		if err == nil {
-			return nil
-		}
+	}
+	if cnf.isPlus() && !reloadPlus {
+		glog.V(3).Info("No need to reload nginx")
+		return nil
 	}
 
 	if err := cnf.nginx.Reload(); err != nil {
-		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v/%v: %v", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
+		return fmt.Errorf("Error reloading NGINX when updating endpoints for %v: %v", mergableIngressesSlice, err)
 	}
-
 	return nil
 }
 

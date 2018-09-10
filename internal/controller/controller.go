@@ -277,44 +277,55 @@ func (lbc *LoadBalancerController) syncEndpoint(task queue.Task) {
 	if endpExists {
 		ings := lbc.getIngressForEndpoints(obj)
 
-		for _, ing := range ings {
-			if !lbc.IsNginxIngress(&ing) {
+		var ingExes []*nginx.IngressEx
+		var mergableIngressesSlice []*nginx.MergeableIngresses
+
+		for i := range ings {
+			if !lbc.IsNginxIngress(&ings[i]) {
 				continue
 			}
-			if utils.IsMinion(&ing) {
-				master, err := lbc.FindMasterForMinion(&ing)
+			if utils.IsMinion(&ings[i]) {
+				master, err := lbc.FindMasterForMinion(&ings[i])
 				if err != nil {
-					glog.Errorf("Ignoring Ingress %v(Minion): %v", ing.Name, err)
+					glog.Errorf("Ignoring Ingress %v(Minion): %v", ings[i].Name, err)
 					continue
 				}
-				if !lbc.configurator.HasIngress(master) {
+				if !lbc.configurator.HasMinion(master, &ings[i]) {
 					continue
 				}
 				mergeableIngresses, err := lbc.createMergableIngresses(master)
 				if err != nil {
-					glog.Errorf("Ignoring Ingress %v(Minion): %v", ing.Name, err)
+					glog.Errorf("Ignoring Ingress %v(Minion): %v", ings[i].Name, err)
 					continue
 				}
 
-				glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Namespace, ing.Name)
-				err = lbc.configurator.UpdateEndpointsMergeableIngress(mergeableIngresses)
-				if err != nil {
-					glog.Errorf("Error updating endpoints for %v/%v: %v", ing.Namespace, ing.Name, err)
-				}
+				mergableIngressesSlice = append(mergableIngressesSlice, mergeableIngresses)
 				continue
 			}
-			if !lbc.configurator.HasIngress(&ing) {
+			if !lbc.configurator.HasIngress(&ings[i]) {
 				continue
 			}
-			ingEx, err := lbc.createIngress(&ing)
+			ingEx, err := lbc.createIngress(&ings[i])
 			if err != nil {
-				glog.Errorf("Error updating endpoints for %v/%v: %v, skipping", ing.Namespace, ing.Name, err)
+				glog.Errorf("Error updating endpoints for %v/%v: %v, skipping", &ings[i].Namespace, &ings[i].Name, err)
 				continue
 			}
-			glog.V(3).Infof("Updating Endpoints for %v/%v", ing.Namespace, ing.Name)
-			err = lbc.configurator.UpdateEndpoints(ingEx)
+			ingExes = append(ingExes, ingEx)
+		}
+
+		if len(ingExes) > 0 {
+			glog.V(3).Infof("Updating Endpoints for %v", ingExes)
+			err = lbc.configurator.UpdateEndpoints(ingExes)
 			if err != nil {
-				glog.Errorf("Error updating endpoints for %v/%v: %v", ing.Namespace, ing.Name, err)
+				glog.Errorf("Error updating endpoints for %v: %v", ingExes, err)
+			}
+		}
+
+		if len(mergableIngressesSlice) > 0 {
+			glog.V(3).Infof("Updating Endpoints for %v", mergableIngressesSlice)
+			err = lbc.configurator.UpdateEndpointsMergeableIngress(mergableIngressesSlice)
+			if err != nil {
+				glog.Errorf("Error updating endpoints for %v: %v", mergableIngressesSlice, err)
 			}
 		}
 	}
@@ -1130,7 +1141,6 @@ func (lbc *LoadBalancerController) IsNginxIngress(ing *extensions.Ingress) bool 
 		return class == lbc.ingressClass || class == ""
 	}
 	return !lbc.useIngressClassOnly
-
 }
 
 // isHealthCheckEnabled checks if health checks are enabled so we can only query pods if enabled.
