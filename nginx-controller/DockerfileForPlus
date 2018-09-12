@@ -3,6 +3,7 @@ FROM debian:stretch-slim
 LABEL maintainer="Wallarm Inc. <support@wallarm.com>"
 
 ENV NGINX_PLUS_VERSION 16-1~stretch
+ENV WALLARM_MODULE_VERSION 16+2.10.4-2~stretch
 
 # Download certificate and key from the customer portal (https://cs.nginx.com)
 # and copy to the build context
@@ -57,7 +58,7 @@ RUN set -x \
   && printf "deb http://repo.wallarm.com/debian/wallarm-node stretch/\n" > /etc/apt/sources.list.d/wallarm.list \
   && printf "deb https://plus-pkgs.nginx.com/debian stretch nginx-plus\n" > /etc/apt/sources.list.d/nginx-plus.list \
   && apt-get update && apt-get install -y --no-install-recommends nginx-plus=${NGINX_PLUS_VERSION} \
-      nginx-plus-module-wallarm wallarm-node \
+      nginx-plus-module-wallarm=${WALLARM_MODULE_VERSION} wallarm-node \
   && apt-get remove --purge --auto-remove -y gnupg1 \
   && rm -rf /var/lib/apt/lists/* \
   && rm -rf /etc/ssl/nginx \
