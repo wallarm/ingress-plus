@@ -14,7 +14,7 @@ server {
     wallarm_mode_allow_override  {{$server.Wallarm.ModeAllowOverride}};
     wallarm_fallback             {{$server.Wallarm.Fallback}};
     {{if not (eq $server.Wallarm.Instance "")}}
-    wallarm_instance             "{{$server.Wallarm.Instance}}";
+    wallarm_instance             {{$server.Wallarm.Instance}};
     {{end}}
     {{if not (eq $server.Wallarm.BlockPage "")}}
     wallarm_block_page           "{{$server.Wallarm.BlockPage}}";
