@@ -1152,7 +1152,6 @@ func GenerateNginxMainConfig(config *Config) *NginxMainConfig {
 		WallarmProcessTimeLimitBlock:     config.MainWallarmProcessTimeLimitBlock,
 		WallarmRequestMemoryLimit:        config.MainWallarmRequestMemoryLimit,
 		WallarmWorkerRlimitVmem:          config.MainWallarmWorkerRlimitVmem,
-		WallarmTarantoolUpstream:         config.WallarmTarantoolUpstream,
 	}
 	return nginxCfg
 }
@@ -1185,7 +1184,7 @@ func (cnf *Configurator) UpdateConfig(config *Config, ingExes []*IngressEx, merg
 
 	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
 	if err != nil {
-		return fmt.Errorf("Error when writing main Config: %v", err)
+		return fmt.Errorf("Error when writing main Config")
 	}
 	cnf.nginx.UpdateMainConfigFile(mainCfgContent)
 
@@ -1233,4 +1232,49 @@ func (cnf *Configurator) HasMinion(master *extensions.Ingress, minion *extension
 		return false
 	}
 	return cnf.minions[masterName][objectMetaToFileName(&minion.ObjectMeta)]
+}
+
+func (cnf *Configurator) AddOrUpdateWallarmTarantool(endp *api_v1.Endpoints) error {
+	wallarmTarantool := cnf.generateWallarmTarantool(endp)
+	name := objectMetaToFileName(&endp.ObjectMeta)
+	content, err := cnf.templateExecutor.ExecuteWallarmTarantoolTemplate(wallarmTarantool)
+	if err != nil {
+		return fmt.Errorf("Error generating Wallarm Tarantool Service Config %v: %v", name, err)
+	}
+	cnf.nginx.UpdateWallarmTarantoolConfigFile(name, content)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when adding or updating wallarm tarantool service %v/%v: %v", endp.Namespace, endp.Name, err)
+	}
+
+	return nil
+}
+
+func (cnf *Configurator) DeleteWallarmTarantool(name string) error {
+	glog.V(3).Infof("Remove tarantool %v", name)
+	cnf.nginx.DeleteWallarmTarantoolConfigFile(name)
+
+	if err := cnf.nginx.Reload(); err != nil {
+		return fmt.Errorf("Error when removing wallarm tarantool service %v: %v", name, err)
+	}
+
+	return nil
+}
+
+func (cnf *Configurator) generateWallarmTarantool(endp *api_v1.Endpoints) *WallarmTarantoolConfig {
+	var wts WallarmTarantoolConfig
+	for _, subset := range endp.Subsets {
+		for _, port := range subset.Ports {
+			for _, address := range subset.Addresses {
+				upstream := UpstreamServer{
+					Address:     address.IP,
+					Port:        fmt.Sprintf("%d", port.Port),
+					MaxFails:    cnf.config.MainWallarmUpstreamMaxFails,
+					FailTimeout: cnf.config.MainWallarmUpstreamFailTimeout,
+				}
+				wts.UpstreamServers = append(wts.UpstreamServers, upstream)
+			}
+		}
+	}
+	return &wts
 }

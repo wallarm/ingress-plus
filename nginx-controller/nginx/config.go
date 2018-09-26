@@ -63,8 +63,9 @@ type Config struct {
 	MainServerSSLDHParam             string
 	MainServerSSLDHParamFileContent  *string
 
-	MainTemplate    *string
-	IngressTemplate *string
+	MainTemplate             *string
+	IngressTemplate          *string
+	WallarmTarantoolTemplate *string
 
 	JWTRealm    string
 	JWTKey      string
@@ -87,8 +88,6 @@ type Config struct {
 	MainWallarmWorkerRlimitVmem          string
 
 	Wallarm *Wallarm
-
-	WallarmTarantoolUpstream *Upstream
 }
 
 // NewDefaultConfig creates a Config with default values
@@ -381,6 +380,9 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 	if ingressTemplate, exists := cfgm.Data["ingress-template"]; exists {
 		cfg.IngressTemplate = &ingressTemplate
 	}
+	if wallarmTarantoolTemplate, exists := cfgm.Data["wallarm-tarantool-template"]; exists {
+		cfg.WallarmTarantoolTemplate = &wallarmTarantoolTemplate
+	}
 	if mainStreamSnippets, exists, err := GetMapKeyAsStringSlice(cfgm.Data, "stream-snippets", cfgm, "\n"); exists {
 		if err != nil {
 			glog.Error(err)
@@ -422,6 +424,7 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 	if wallarmUpstreamFailTimeout, exists := cfgm.Data["wallarm-upstream-fail-timeout"]; exists {
 		cfg.MainWallarmUpstreamFailTimeout = wallarmUpstreamFailTimeout
 	}
+
 	if wallarmAclMapsize, exists := cfgm.Data["wallarm-acl-mapsize"]; exists {
 		cfg.MainWallarmAclMapsize = wallarmAclMapsize
 	}

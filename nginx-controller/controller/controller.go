@@ -64,7 +64,6 @@ type LoadBalancerController struct {
 	stopCh                      chan struct{}
 	cnf                         *nginx.Configurator
 	watchNginxConfigMaps        bool
-	nginxConfigMapsName         string
 	nginxPlus                   bool
 	recorder                    record.EventRecorder
 	defaultServerSecret         string
@@ -215,6 +214,11 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 				lbc.syncQueue.enqueue(addSvc)
 				return
 			}
+			if lbc.isWallarmTarantoolService(addSvc) {
+				glog.V(3).Infof("Adding endpoints for Wallarm tarantool service: %v", addSvc.Name)
+				lbc.enqueueEndpointsForService(addSvc)
+				return
+			}
 			glog.V(3).Infof("Adding service: %v", addSvc.Name)
 			lbc.enqueueIngressForService(addSvc)
 		},
@@ -232,7 +236,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 					return
 				}
 			}
-			if lbc.isExternalServiceForStatus(remSvc) {
+			if lbc.isExternalServiceForStatus(remSvc) || lbc.isWallarmTarantoolService(remSvc) {
 				lbc.syncQueue.enqueue(remSvc)
 				return
 			}
@@ -246,6 +250,10 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 				curSvc := cur.(*api_v1.Service)
 				if lbc.isExternalServiceForStatus(curSvc) {
 					lbc.syncQueue.enqueue(curSvc)
+					return
+				}
+				if lbc.isWallarmTarantoolService(curSvc) {
+					lbc.enqueueEndpointsForService(curSvc)
 					return
 				}
 				glog.V(3).Infof("Service %v changed, syncing", curSvc.Name)
@@ -350,7 +358,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			glog.Warning(err)
 		} else {
 			lbc.watchNginxConfigMaps = true
-			lbc.nginxConfigMapsName = input.NginxConfigMaps
 
 			cfgmHandlers := cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
@@ -435,27 +442,12 @@ func (lbc *LoadBalancerController) syncEndp(task Task) {
 
 	obj, endpExists, err := lbc.endpLister.GetByKey(key)
 	if err != nil {
+		glog.V(3).Infof("Error syncing endpoints %v: %v", key, err)
 		lbc.syncQueue.requeue(task, err)
 		return
 	}
 
 	if endpExists {
-		svc := lbc.getServiceForEndpoints(obj)
-		svcKey := ""
-		if svc != nil {
-			svcKey = fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-			if svcKey == lbc.wallarmTarantoolServiceName {
-				cm, exists, err := lbc.cfgmLister.GetByKey(lbc.nginxConfigMapsName)
-				if exists && cm != nil {
-					glog.V(3).Infof("Enqueue cm %v", lbc.nginxConfigMapsName)
-					lbc.syncQueue.enqueue(cm)
-					return
-				}
-				if err != nil {
-					glog.Errorf("Error getting cm %v: %v", lbc.nginxConfigMapsName, err)
-				}
-			}
-		}
 		ings := lbc.getIngressForEndpoints(obj)
 
 		for _, ing := range ings {
@@ -498,6 +490,14 @@ func (lbc *LoadBalancerController) syncEndp(task Task) {
 				glog.Errorf("Error updating endpoints for %v/%v: %v", ing.Namespace, ing.Name, err)
 			}
 		}
+
+		endp := obj.(*api_v1.Endpoints)
+		svc := lbc.getServiceForEndpoints(endp)
+		if svc != nil && lbc.isWallarmTarantoolService(svc) {
+			if err := lbc.cnf.AddOrUpdateWallarmTarantool(endp); err != nil {
+				glog.Errorf("Error updating Wallarm tarantool: %v", err)
+			}
+		}
 	}
 }
 
@@ -515,10 +515,7 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 	if cfgmExists {
 		cfgm := obj.(*api_v1.ConfigMap)
 		cfg = nginx.ParseConfigMap(cfgm, lbc.nginxPlus)
-		cfg.WallarmTarantoolUpstream, err = lbc.getWallarmUpstreamService(cfg)
-		if err != nil {
-			lbc.syncQueue.requeueAfter(task, err, 30*time.Second)
-		}
+
 		lbc.statusUpdater.SaveStatusFromExternalStatus(cfgm.Data["external-status-address"])
 	}
 
@@ -566,42 +563,6 @@ func (lbc *LoadBalancerController) syncCfgm(task Task) {
 			}
 		}
 	}
-}
-
-func (lbc *LoadBalancerController) getWallarmUpstreamService(cfg *nginx.Config) (*nginx.Upstream, error) {
-	svc, err := lbc.getService(lbc.wallarmTarantoolServiceName)
-	if err != nil {
-		glog.Errorf("Error getting service %v: %v", lbc.wallarmTarantoolServiceName, err)
-		return nil, err
-	}
-	glog.V(3).Infof("Found service %s", lbc.wallarmTarantoolServiceName)
-	endps, err := lbc.endpLister.GetServiceEndpoints(svc)
-	if err != nil {
-		glog.Errorf("Error getting endpoints for service %s from the cache: %v", svc.Name, err)
-		return nil, err
-	}
-	var upsServers []nginx.UpstreamServer
-	for _, subset := range endps.Subsets {
-		for _, port := range subset.Ports {
-			for _, address := range subset.Addresses {
-				upsServers = append(upsServers, nginx.UpstreamServer{
-					Address:     fmt.Sprintf("%v", address.IP),
-					Port:        fmt.Sprintf("%v", port.Port),
-					MaxFails:    cfg.MainWallarmUpstreamMaxFails,
-					FailTimeout: cfg.MainWallarmUpstreamFailTimeout,
-				})
-			}
-		}
-	}
-	if len(upsServers) < 1 {
-		return nil, nil
-	}
-	upstream := nginx.Upstream{
-		Name:            "wallarm-tarantool",
-		UpstreamServers: upsServers,
-	}
-
-	return &upstream, nil
 }
 
 // getManagedIngresses gets Ingress resources that the IC is currently responsible for
@@ -671,7 +632,11 @@ func (lbc *LoadBalancerController) sync(task Task) {
 		lbc.syncSecret(task)
 		return
 	case Service:
-		lbc.syncExternalService(task)
+		if task.Key == lbc.wallarmTarantoolServiceName {
+			lbc.syncWallarmTarantool(task)
+		} else {
+			lbc.syncExternalService(task)
+		}
 	}
 }
 
@@ -809,6 +774,19 @@ func (lbc *LoadBalancerController) syncExternalService(task Task) {
 		if err != nil {
 			glog.Errorf("error updating ingress status in syncExternalService: %v", err)
 		}
+	}
+}
+
+func (lbc *LoadBalancerController) syncWallarmTarantool(task Task) {
+	key := task.Key
+	_, exists, err := lbc.svcLister.GetByKey(key)
+	if err != nil {
+		lbc.syncQueue.requeue(task, err)
+		return
+	}
+	if !exists {
+		// service got removed
+		lbc.cnf.DeleteWallarmTarantool(key)
 	}
 }
 
@@ -1084,20 +1062,6 @@ func (lbc *LoadBalancerController) getIngressForEndpoints(obj interface{}) []ext
 	return ings
 }
 
-func (lbc *LoadBalancerController) getServiceForEndpoints(obj interface{}) *api_v1.Service {
-	endp := obj.(*api_v1.Endpoints)
-	svcKey := endp.GetNamespace() + "/" + endp.GetName()
-	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
-	if err != nil {
-		glog.V(3).Infof("error getting service %v from the cache: %v\n", svcKey, err)
-		return nil
-	}
-	if !svcExists {
-		return nil
-	}
-	return svcObj.(*api_v1.Service)
-}
-
 func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*nginx.IngressEx, error) {
 	ingEx := &nginx.IngressEx{
 		Ingress: ing,
@@ -1355,19 +1319,6 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *extensio
 	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
 }
 
-func (lbc *LoadBalancerController) getService(svcKey string) (*api_v1.Service, error) {
-	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
-	if err != nil {
-		return nil, err
-	}
-
-	if svcExists {
-		return svcObj.(*api_v1.Service), nil
-	}
-
-	return nil, fmt.Errorf("service %s doesn't exists", svcKey)
-}
-
 // ParseNamespaceName parses the string in the <namespace>/<name> format and returns the name and the namespace.
 // It returns an error in case the string does not follow the <namespace>/<name> format.
 func ParseNamespaceName(value string) (ns string, name string, err error) {
@@ -1560,4 +1511,35 @@ func isMaster(ing *extensions.Ingress) bool {
 		return true
 	}
 	return false
+}
+
+func (lbc *LoadBalancerController) isWallarmTarantoolService(svc *api_v1.Service) bool {
+	svcName := svc.Namespace + "/" + svc.Name
+	return svcName == lbc.wallarmTarantoolServiceName
+}
+
+func (lbc *LoadBalancerController) enqueueEndpointsForService(svc *api_v1.Service) {
+	endp, err := lbc.endpLister.GetServiceEndpoints(svc)
+
+	if err != nil {
+		glog.V(3).Infof("ignoring service %v: %v", svc.Name, err)
+		return
+	}
+
+	lbc.syncQueue.enqueue(&endp)
+}
+
+func (lbc *LoadBalancerController) getServiceForEndpoints(endp *api_v1.Endpoints) *api_v1.Service {
+	svcKey := endp.GetNamespace() + "/" + endp.GetName()
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
+	if err != nil {
+		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
+		return nil
+	}
+	if !svcExists {
+		glog.V(3).Infof("Service %v not found", svcKey)
+		return nil
+	}
+
+	return svcObj.(*api_v1.Service)
 }

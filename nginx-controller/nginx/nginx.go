@@ -188,7 +188,10 @@ type NginxMainConfig struct {
 	WallarmProcessTimeLimitBlock     string
 	WallarmRequestMemoryLimit        string
 	WallarmWorkerRlimitVmem          string
-	WallarmTarantoolUpstream         *Upstream
+}
+
+type WallarmTarantoolConfig struct {
+	UpstreamServers []UpstreamServer
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -316,6 +319,10 @@ func (nginx *NginxController) getIngressNginxConfigFileName(name string) string 
 	return path.Join(nginx.nginxConfdPath, name+".conf")
 }
 
+func (nginx *NginxController) getWallarmTarantoolConfigFileName(name string) string {
+	return nginx.getIngressNginxConfigFileName("wallarm-tarantool-" + name)
+}
+
 func (nginx *NginxController) getSecretFileName(name string) string {
 	return path.Join(nginx.nginxSecretsPath, name)
 }
@@ -436,4 +443,40 @@ func (nginx *NginxController) UpdateIngressConfigFile(name string, cfg []byte) {
 		defer w.Close()
 	}
 	glog.V(3).Infof("The Ingress config file has been updated")
+}
+
+// UpdateWallarmTarantoolConfigFile writes the Wallarm Tarantool Service configuration file to the filesystem
+func (nginx *NginxController) UpdateWallarmTarantoolConfigFile(name string, cfg []byte) {
+	filename := nginx.getWallarmTarantoolConfigFileName(name)
+	glog.V(3).Infof("Writing Wallarm Tarantool Service conf to %v", filename)
+
+	if bool(glog.V(3)) || nginx.local {
+		glog.Info(string(cfg))
+	}
+
+	if !nginx.local {
+		w, err := os.Create(filename)
+		if err != nil {
+			glog.Fatalf("Failed to open %v: %v", filename, err)
+		}
+		_, err = w.Write(cfg)
+		if err != nil {
+			glog.Fatalf("Failed to write to %v: %v", filename, err)
+		}
+		defer w.Close()
+	}
+	glog.V(3).Infof("The Wallarm Tarantool Service config file has been updated")
+}
+
+// DeleteWallarmTarantoolConfigFile removes the Wallarm Tarantool Service configuration file from the filesystem
+func (nginx *NginxController) DeleteWallarmTarantoolConfigFile(key string) {
+	name := keyToFileName(key)
+	filename := nginx.getWallarmTarantoolConfigFileName(name)
+	glog.V(3).Infof("deleting %v", filename)
+
+	if !nginx.local {
+		if err := os.Remove(filename); err != nil {
+			glog.Warningf("Failed to delete %v: %v", filename, err)
+		}
+	}
 }

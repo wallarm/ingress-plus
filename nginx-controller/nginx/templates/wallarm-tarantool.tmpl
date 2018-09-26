@@ -1,0 +1,11 @@
+upstream wallarm_tarantool {
+    {{ if gt (len .UpstreamServers) 0 }}
+	{{range $server := .UpstreamServers}}
+	server {{$server.Address}}:{{$server.Port}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}};{{end}}
+	keepalive {{ .UpstreamServers | len }};
+	{{ else }}
+	server 127.0.0.1:3301;
+	{{ end }}
+}
+
+wallarm_tarantool_upstream wallarm_tarantool;

@@ -74,7 +74,7 @@ RUN ln -sf /proc/1/fd/1 /var/log/nginx/access.log \
 
 EXPOSE 80 443
 
-COPY nginx-ingress nginx/templates/nginx-plus.ingress.tmpl nginx/templates/nginx-plus.tmpl /
+COPY nginx-ingress nginx/templates/nginx-plus.ingress.tmpl nginx/templates/nginx-plus.tmpl nginx/templates/wallarm-tarantool.tmpl /
 
 RUN rm /etc/nginx/conf.d/* \
   && mkdir -p /etc/nginx/secrets

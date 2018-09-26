@@ -8,13 +8,14 @@ import (
 
 // TemplateExecutor executes NGINX configuration templates
 type TemplateExecutor struct {
-	HealthStatus    bool
-	mainTemplate    *template.Template
-	ingressTemplate *template.Template
+	HealthStatus             bool
+	mainTemplate             *template.Template
+	ingressTemplate          *template.Template
+	wallarmTarantoolTemplate *template.Template
 }
 
 // NewTemplateExecutor creates a TemplateExecutor
-func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, healthStatus bool) (*TemplateExecutor, error) {
+func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, wallarmTarantoolTemplatePath string, healthStatus bool) (*TemplateExecutor, error) {
 	// template name must be the base name of the template file https://golang.org/pkg/text/template/#Template.ParseFiles
 	nginxTemplate, err := template.New(path.Base(mainTemplatePath)).ParseFiles(mainTemplatePath)
 	if err != nil {
@@ -26,7 +27,17 @@ func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, he
 		return nil, err
 	}
 
-	return &TemplateExecutor{mainTemplate: nginxTemplate, ingressTemplate: ingressTemplate, HealthStatus: healthStatus}, nil
+	wallarmTarantoolTemplate, err := template.New(path.Base(wallarmTarantoolTemplatePath)).ParseFiles(wallarmTarantoolTemplatePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TemplateExecutor{
+		HealthStatus:             healthStatus,
+		mainTemplate:             nginxTemplate,
+		ingressTemplate:          ingressTemplate,
+		wallarmTarantoolTemplate: wallarmTarantoolTemplate,
+	}, nil
 }
 
 // UpdateMainTemplate updates the main NGINX template
@@ -51,6 +62,17 @@ func (te *TemplateExecutor) UpdateIngressTemplate(templateString *string) error 
 	return nil
 }
 
+// UpdateWallarmTarantoolTemplate updates the Wallarm Tarantool Service template
+func (te *TemplateExecutor) UpdateWallarmTarantoolTemplate(templateString *string) error {
+	newTemplate, err := template.New("wallarmTarantoolTemplate").Parse(*templateString)
+	if err != nil {
+		return err
+	}
+	te.wallarmTarantoolTemplate = newTemplate
+
+	return nil
+}
+
 // ExecuteMainConfigTemplate generates the content of the main NGINX configuration file
 func (te *TemplateExecutor) ExecuteMainConfigTemplate(cfg *NginxMainConfig) ([]byte, error) {
 	cfg.HealthStatus = te.HealthStatus
@@ -65,6 +87,14 @@ func (te *TemplateExecutor) ExecuteMainConfigTemplate(cfg *NginxMainConfig) ([]b
 func (te *TemplateExecutor) ExecuteIngressConfigTemplate(cfg *IngressNginxConfig) ([]byte, error) {
 	var configBuffer bytes.Buffer
 	err := te.ingressTemplate.Execute(&configBuffer, cfg)
+
+	return configBuffer.Bytes(), err
+}
+
+// ExecuteIngressConfigTemplate generates the content of a NGINX configuration file for an Ingress resource
+func (te *TemplateExecutor) ExecuteWallarmTarantoolTemplate(cfg *WallarmTarantoolConfig) ([]byte, error) {
+	var configBuffer bytes.Buffer
+	err := te.wallarmTarantoolTemplate.Execute(&configBuffer, cfg)
 
 	return configBuffer.Bytes(), err
 }

@@ -69,6 +69,10 @@ var (
 		`Path to the ingress NGINX configuration template for an ingress resource.
 	(default for NGINX "nginx.ingress.tmpl"; default for NGINX Plus "nginx-plus.ingress.tmpl")`)
 
+	wallarmTarantoolTemplatePath = flag.String("wallarm-tarantool-template-path", "",
+		`Path to the Wallarm Tarantool Service configuration template.
+	(default for NGINX "wallarm-tarantool.tmpl")`)
+
 	externalService = flag.String("external-service", "",
 		`Specifies the name of the service with the type LoadBalancer through which the Ingress controller pods are exposed externally.
 The external address of the service is used when reporting the status of Ingress resources. Requires -report-ingress-status.`)
@@ -79,8 +83,8 @@ The external address of the service is used when reporting the status of Ingress
 	leaderElectionEnabled = flag.Bool("enable-leader-election", false,
 		"Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.")
 
-	// TODO: Usage text
-	wallarmTarantoolService = flag.String("wallarm-tarantool-service", "", ``)
+	wallarmTarantoolService = flag.String("wallarm-tarantool-service", "",
+		`Specifies the name of the Wallarm postanalytics service in form namespace/servicename`)
 )
 
 func main() {
@@ -126,6 +130,7 @@ func main() {
 		nginxConfTemplatePath = "nginx-plus.tmpl"
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 	}
+	nginxWallarmTarantoolTemplatePath := "wallarm-tarantool.tmpl"
 
 	if *mainTemplatePath != "" {
 		nginxConfTemplatePath = *mainTemplatePath
@@ -133,8 +138,11 @@ func main() {
 	if *ingressTemplatePath != "" {
 		nginxIngressTemplatePath = *ingressTemplatePath
 	}
+	if *wallarmTarantoolTemplatePath != "" {
+		nginxWallarmTarantoolTemplatePath = *wallarmTarantoolTemplatePath
+	}
 
-	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, *healthStatus)
+	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, nginxWallarmTarantoolTemplatePath, *healthStatus)
 	if err != nil {
 		glog.Fatalf("Error creating TemplateExecutor: %v", err)
 	}
