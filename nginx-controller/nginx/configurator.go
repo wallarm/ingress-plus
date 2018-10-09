@@ -1276,5 +1276,6 @@ func (cnf *Configurator) generateWallarmTarantool(endp *api_v1.Endpoints) *Walla
 			}
 		}
 	}
+	wts.EnableWallarm = cnf.config.MainEnableWallarm
 	return &wts
 }

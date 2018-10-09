@@ -1,3 +1,4 @@
+{{- if .EnableWallarm}}
 upstream wallarm_tarantool {
     {{ if gt (len .UpstreamServers) 0 }}
 	{{range $server := .UpstreamServers}}
@@ -8,4 +9,4 @@ upstream wallarm_tarantool {
 	{{ end }}
 }
 
-wallarm_tarantool_upstream wallarm_tarantool;
+wallarm_tarantool_upstream wallarm_tarantool;{{end}}

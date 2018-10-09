@@ -191,6 +191,7 @@ type NginxMainConfig struct {
 }
 
 type WallarmTarantoolConfig struct {
+	EnableWallarm bool
 	UpstreamServers []UpstreamServer
 }
 
