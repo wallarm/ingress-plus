@@ -8,15 +8,16 @@ import (
 
 // TemplateExecutor executes NGINX configuration templates
 type TemplateExecutor struct {
-	HealthStatus    bool
-	NginxStatus     bool
-	NginxStatusPort int
-	mainTemplate    *template.Template
-	ingressTemplate *template.Template
+	HealthStatus          bool
+	NginxStatus           bool
+	NginxStatusAllowCIDRs []string
+	NginxStatusPort       int
+	mainTemplate          *template.Template
+	ingressTemplate       *template.Template
 }
 
 // NewTemplateExecutor creates a TemplateExecutor
-func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, healthStatus bool, nginxStatus bool, nginxStatusPort int) (*TemplateExecutor, error) {
+func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, healthStatus bool, nginxStatus bool, nginxStatusAllowCIDRs []string, nginxStatusPort int) (*TemplateExecutor, error) {
 	// template name must be the base name of the template file https://golang.org/pkg/text/template/#Template.ParseFiles
 	nginxTemplate, err := template.New(path.Base(mainTemplatePath)).ParseFiles(mainTemplatePath)
 	if err != nil {
@@ -29,11 +30,12 @@ func NewTemplateExecutor(mainTemplatePath string, ingressTemplatePath string, he
 	}
 
 	return &TemplateExecutor{
-		mainTemplate:    nginxTemplate,
-		ingressTemplate: ingressTemplate,
-		HealthStatus:    healthStatus,
-		NginxStatus:     nginxStatus,
-		NginxStatusPort: nginxStatusPort,
+		mainTemplate:          nginxTemplate,
+		ingressTemplate:       ingressTemplate,
+		HealthStatus:          healthStatus,
+		NginxStatus:           nginxStatus,
+		NginxStatusAllowCIDRs: nginxStatusAllowCIDRs,
+		NginxStatusPort:       nginxStatusPort,
 	}, nil
 }
 
@@ -63,6 +65,7 @@ func (te *TemplateExecutor) UpdateIngressTemplate(templateString *string) error 
 func (te *TemplateExecutor) ExecuteMainConfigTemplate(cfg *MainConfig) ([]byte, error) {
 	cfg.HealthStatus = te.HealthStatus
 	cfg.NginxStatus = te.NginxStatus
+	cfg.NginxStatusAllowCIDRs = te.NginxStatusAllowCIDRs
 	cfg.NginxStatusPort = te.NginxStatusPort
 
 	var configBuffer bytes.Buffer

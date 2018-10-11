@@ -154,6 +154,7 @@ type MainConfig struct {
 	StreamLogFormat           string
 	HealthStatus              bool
 	NginxStatus               bool
+	NginxStatusAllowCIDRs     []string
 	NginxStatusPort           int
 	MainSnippets              []string
 	HTTPSnippets              []string

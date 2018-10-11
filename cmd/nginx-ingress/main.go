@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -83,6 +84,8 @@ The external address of the service is used when reporting the status of Ingress
 	leaderElectionEnabled = flag.Bool("enable-leader-election", false,
 		"Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.")
 
+	nginxStatusAllowCIDRs = flag.String("nginx-status-allow-cidrs", "127.0.0.1", `Whitelist IPv4 IP/CIDR blocks to allow access to NGINX stub_status or the NGINX Plus API. Separate multiple IP/CIDR by commas.`)
+
 	nginxStatusPort = flag.Int("nginx-status-port", 8080,
 		"Set the port where the NGINX stub_status or the NGINX Plus API is exposed. [1023 - 65535]")
 
@@ -104,9 +107,14 @@ func main() {
 		glog.Fatalf("Invalid value for nginx-status-port: %v", portValidationError)
 	}
 
+	var err error
+	allowedCIDRs, err := parseNginxStatusAllowCIDRs(*nginxStatusAllowCIDRs)
+	if err != nil {
+		glog.Fatalf(`Invalid value for nginx-status-allow-cidrs: %v`, err)
+	}
+
 	glog.Infof("Starting NGINX Ingress controller Version=%v GitCommit=%v\n", version, gitCommit)
 
-	var err error
 	var config *rest.Config
 	if *proxyURL != "" {
 		config, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -146,7 +154,7 @@ func main() {
 		nginxIngressTemplatePath = *ingressTemplatePath
 	}
 
-	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, *healthStatus, *nginxStatus, *nginxStatusPort)
+	templateExecutor, err := nginx.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, *healthStatus, *nginxStatus, allowedCIDRs, *nginxStatusPort)
 	if err != nil {
 		glog.Fatalf("Error creating TemplateExecutor: %v", err)
 	}
@@ -332,6 +340,38 @@ func getSocketClient() http.Client {
 func validateStatusPort(nginxStatusPort int) error {
 	if nginxStatusPort < 1023 || nginxStatusPort > 65535 {
 		return fmt.Errorf("port outside of valid port range [1023 - 65535]: %v", nginxStatusPort)
+	}
+	return nil
+}
+
+// parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.
+// It returns an array of the valid CIDR/IP addresses or an error if given an invalid address.
+func parseNginxStatusAllowCIDRs(input string) (cidrs []string, err error) {
+	cidrsArray := strings.Split(input, ",")
+	for _, cidr := range cidrsArray {
+		trimmedCidr := strings.TrimSpace(cidr)
+		err := validateCIDRorIP(trimmedCidr)
+		if err != nil {
+			return cidrs, err
+		}
+		cidrs = append(cidrs, trimmedCidr)
+	}
+	return cidrs, nil
+}
+
+// validateCIDRorIP makes sure a given string is either a valid CIDR block or IP address.
+// It an error if it is not valid.
+func validateCIDRorIP(cidr string) error {
+	if cidr == "" {
+		return fmt.Errorf("invalid CIDR address: an empty string is an invalid CIDR block or IP address")
+	}
+	_, _, err := net.ParseCIDR(cidr)
+	if err == nil {
+		return nil
+	}
+	ip := net.ParseIP(cidr)
+	if ip == nil {
+		return fmt.Errorf("invalid IP address: %v", cidr)
 	}
 	return nil
 }
