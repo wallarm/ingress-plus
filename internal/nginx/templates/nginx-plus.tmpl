@@ -96,10 +96,10 @@ http {
 
         location  = /dashboard.html {
         }
-
-        allow 127.0.0.1;
+        {{ range $value := .NginxStatusAllowCIDRs }}{{ if ne $value "" }}
+        allow {{$value}};{{ end }}
+        {{end}}
         deny all;
-
         location /api {
             api write=off;
         }

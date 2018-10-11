@@ -86,10 +86,10 @@ http {
     # stub_status
     server {
         listen {{.NginxStatusPort}};
-
-        allow 127.0.0.1;
+        {{ range $value := .NginxStatusAllowCIDRs }}{{ if ne $value "" }}
+        allow {{$value}};{{ end }}
+        {{end}}
         deny all;
-
         location /stub_status {
             stub_status;
         }
