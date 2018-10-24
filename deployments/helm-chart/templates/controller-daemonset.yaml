@@ -74,6 +74,7 @@ spec:
 {{- if .Values.controller.nginxStatus.enable }}
           - -nginx-status
           - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
+          - -nginx-status-allow-cidrs={{ .Values.controller.nginxStatus.allowCidrs }}
 {{- end }}
 {{- if .Values.controller.reportIngressStatus.enable }}
           - -report-ingress-status

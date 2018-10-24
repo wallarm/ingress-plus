@@ -25,12 +25,14 @@ controller:
   nginxStatus:
     enable: true
     port: 8080
+    allowCidrs: "127.0.0.1"
   service:
     create: true
     type: LoadBalancer
     externalTrafficPolicy: Local
     annotations: {}
     loadBalancerIP: ""
+    externalIPs: []
   serviceAccountName: nginx-ingress
   reportIngressStatus:
     enable: true
