@@ -930,7 +930,7 @@ func TestFindIngressesForSecret(t *testing.T) {
 			if err != nil {
 				t.Fatalf("templateExecuter could not start: %v", err)
 			}
-			ngxc := nginx.NewNginxController("/etc/nginx", true)
+			ngxc := nginx.NewNginxController("/etc/nginx", "nginx", true)
 			apiCtrl, err := plus.NewNginxAPIController(&http.Client{}, "", true)
 			if err != nil {
 				t.Fatalf("NGINX API Controller could not start: %v", err)
@@ -1111,7 +1111,7 @@ func TestFindIngressesForSecretWithMinions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("templateExecuter could not start: %v", err)
 			}
-			ngxc := nginx.NewNginxController("/etc/nginx", true)
+			ngxc := nginx.NewNginxController("/etc/nginx", "nginx", true)
 			apiCtrl, err := plus.NewNginxAPIController(&http.Client{}, "", true)
 			if err != nil {
 				t.Fatalf("NGINX API Controller could not start: %v", err)

@@ -61,6 +61,7 @@ Parameter | Description | Default
 `controller.kind` | The kind of the Ingress controller installation - deployment or daemonset. | deployment
 `controller.nginxplus` | Deploys the Ingress controller for NGINX Plus. | false
 `controller.hostNetwork` | Enables the Ingress controller pods to use the host's network namespace. | false
+`controller.nginxDebug` | Enables debugging for NGINX. Uses the `nginx-debug` binary. Requires `error-log-level: debug` in the ConfigMap via `controller.config.entries`. | false
 `controller.image.repository` | The image repository of the Ingress controller. | nginx/nginx-ingress
 `controller.image.tag` | The tag of the Ingress controller image. | edge
 `controller.image.pullPolicy` | The pull policy for the Ingress controller image. | IfNotPresent

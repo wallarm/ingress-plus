@@ -71,6 +71,7 @@ spec:
           - -watch-namespace={{ .Values.controller.watchNamespace }}
 {{- end }}
           - -health-status={{ .Values.controller.healthStatus }}
+          - -nginx-debug={{ .Values.controller.nginxDebug }}
 {{- if .Values.controller.nginxStatus.enable }}
           - -nginx-status
           - -nginx-status-port={{ .Values.controller.nginxStatus.port }}

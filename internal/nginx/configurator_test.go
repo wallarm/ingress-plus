@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/nginxinc/kubernetes-ingress/internal/nginx/plus"
-
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -528,7 +527,7 @@ func createTestConfigurator() (*Configurator, error) {
 	if err != nil {
 		return nil, err
 	}
-	ngxc := NewNginxController("/etc/nginx", true)
+	ngxc := NewNginxController("/etc/nginx", "nginx", true)
 	apiCtrl, err := plus.NewNginxAPIController(&http.Client{}, "", true)
 	if err != nil {
 		return nil, err
@@ -545,7 +544,7 @@ func createTestConfiguratorInvalidIngressTemplate() (*Configurator, error) {
 	if err := templateExecutor.UpdateIngressTemplate(&invalidIngressTemplate); err != nil {
 		return nil, err
 	}
-	ngxc := NewNginxController("/etc/nginx", true)
+	ngxc := NewNginxController("/etc/nginx", "nginx", true)
 	apiCtrl, _ := plus.NewNginxAPIController(&http.Client{}, "", true)
 	return NewConfigurator(ngxc, NewDefaultConfig(), apiCtrl, templateExecutor), nil
 }

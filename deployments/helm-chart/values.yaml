@@ -3,6 +3,7 @@ controller:
   kind: deployment
   nginxplus: false
   hostNetwork: false
+  nginxDebug: false
   image:
     repository: nginx/nginx-ingress
     tag: "edge"

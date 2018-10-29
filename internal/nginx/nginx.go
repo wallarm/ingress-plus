@@ -23,6 +23,7 @@ type Controller struct {
 	nginxConfdPath        string
 	nginxSecretsPath      string
 	local                 bool
+	nginxBinaryPath       string
 	verifyConfigGenerator *verify.ConfigGenerator
 	verifyClient          *verify.Client
 	configVersion         int
@@ -187,12 +188,13 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 				Port:        "8181",
 				MaxFails:    1,
 				FailTimeout: "10s",
-			}},
+			},
+		},
 	}
 }
 
 // NewNginxController creates a NGINX controller
-func NewNginxController(nginxConfPath string, local bool) *Controller {
+func NewNginxController(nginxConfPath string, nginxBinaryPath string, local bool) *Controller {
 	verifyConfigGenerator, err := verify.NewConfigGenerator()
 	if err != nil {
 		glog.Fatalf("error instantiating a verify.ConfigGenerator: %v", err)
@@ -202,6 +204,7 @@ func NewNginxController(nginxConfPath string, local bool) *Controller {
 		nginxConfdPath:        path.Join(nginxConfPath, "conf.d"),
 		nginxSecretsPath:      path.Join(nginxConfPath, "secrets"),
 		local:                 local,
+		nginxBinaryPath:       nginxBinaryPath,
 		verifyConfigGenerator: verifyConfigGenerator,
 		configVersion:         0,
 		verifyClient:          verify.NewClient(),
@@ -295,6 +298,10 @@ func (nginx *Controller) getSecretFileName(name string) string {
 	return path.Join(nginx.nginxSecretsPath, name)
 }
 
+func (nginx *Controller) getNginxCommand(cmd string) string {
+	return fmt.Sprint(nginx.nginxBinaryPath, " -s ", cmd)
+}
+
 // Reload reloads NGINX
 func (nginx *Controller) Reload() error {
 	if nginx.local {
@@ -306,7 +313,9 @@ func (nginx *Controller) Reload() error {
 	nginx.UpdateConfigVersionFile()
 
 	glog.V(3).Infof("Reloading nginx. configVersion: %v", nginx.configVersion)
-	if err := shellOut("nginx -s reload"); err != nil {
+
+	reloadCmd := nginx.getNginxCommand("reload")
+	if err := shellOut(reloadCmd); err != nil {
 		return fmt.Errorf("nginx reload failed: %v", err)
 	}
 	err := nginx.verifyClient.WaitForCorrectVersion(nginx.configVersion)
@@ -325,7 +334,7 @@ func (nginx *Controller) Start(done chan error) {
 		return
 	}
 
-	cmd := exec.Command("nginx")
+	cmd := exec.Command(nginx.nginxBinaryPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -345,7 +354,8 @@ func (nginx *Controller) Start(done chan error) {
 // Quit shutdowns NGINX gracefully
 func (nginx *Controller) Quit() {
 	if !nginx.local {
-		if err := shellOut("nginx -s quit"); err != nil {
+		quitCmd := nginx.getNginxCommand("quit")
+		if err := shellOut(quitCmd); err != nil {
 			glog.Fatalf("Failed to quit nginx: %v", err)
 		}
 	} else {
