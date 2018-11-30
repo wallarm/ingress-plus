@@ -32,6 +32,10 @@ spec:
 {{- end }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
 {{- if .Values.controller.wallarm.enabled }}
+      {{- if .Values.controller.wallarm.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.controller.wallarm.imagePullSecrets | indent 8 }}
+      {{- end }}
       initContainers:
 {{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
 {{- end }}
