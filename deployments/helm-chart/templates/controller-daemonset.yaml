@@ -28,13 +28,13 @@ spec:
       nodeSelector:
 {{ toYaml .Values.controller.nodeSelector | indent 8 }}
 {{- end }}
-{{- if eq .Values.controller.tolerations "icp" }}
+{{- if .Values.controller.tolerations }}
       tolerations:
-      - key: "dedicated"
-        operator: "Exists"
-        effect: "NoSchedule"
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
+{{ toYaml .Values.controller.tolerations | indent 6 }}
+{{- end }}
+{{- if .Values.controller.affinity }}
+      affinity:
+{{ toYaml .Values.controller.affinity | indent 8 }}
 {{- end }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
       containers:
