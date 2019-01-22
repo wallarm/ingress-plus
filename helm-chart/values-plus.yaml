@@ -34,6 +34,7 @@ controller:
     enableLeaderElection: true
   wallarm:
     enabled: true
+    apiHost: api.wallarm.com
     token: ""
     tarantool:
       service:

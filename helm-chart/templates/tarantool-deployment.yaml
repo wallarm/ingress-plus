@@ -61,6 +61,8 @@ spec:
           image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
           command: ["/usr/share/wallarm-common/synccloud"]
           env:
+          - name: WALLARM_API_HOST
+            value: {{ .Values.controller.wallarm.apiHost | default "api.wallarm.com" }}
           - name: WALLARM_API_TOKEN
             valueFrom:
               secretKeyRef:
