@@ -34,6 +34,7 @@ type Config struct {
 	ProxyHideHeaders              []string
 	ProxyPassHeaders              []string
 	HSTS                          bool
+	HSTSBehindProxy               bool
 	HSTSMaxAge                    int64
 	HSTSIncludeSubdomains         bool
 	LBMethod                      string
@@ -198,6 +199,11 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 				glog.Error(err)
 				parsingErrors = true
 			}
+			hstsBehindProxy, existsBP, err := GetMapKeyAsBool(cfgm.Data, "hsts-behind-proxy", cfgm)
+			if existsBP && err != nil {
+				glog.Error(err)
+				parsingErrors = true
+			}
 
 			if parsingErrors {
 				glog.Errorf("Configmap %s/%s: There are configuration issues with hsts annotations, skipping options for all hsts settings", cfgm.GetNamespace(), cfgm.GetName())
@@ -208,6 +214,9 @@ func ParseConfigMap(cfgm *api_v1.ConfigMap, nginxPlus bool) *Config {
 				}
 				if existsIS {
 					cfg.HSTSIncludeSubdomains = hstsIncludeSubdomains
+				}
+				if existsBP {
+					cfg.HSTSBehindProxy = hstsBehindProxy
 				}
 			}
 		}
