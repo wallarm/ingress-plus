@@ -25,6 +25,9 @@ controller:
     pullPolicy: IfNotPresent
 
   config:
+    ## The name of the ConfigMap used by the Ingress controller.
+    name: nginx-config
+
     ## The entries of the ConfigMap for customizing NGINX configuration.
     entries: {}
 
@@ -154,6 +157,9 @@ controller:
 
     ## Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources. controller.reportIngressStatus.enable must be set to true.
     enableLeaderElection: true
+
+    ## Specifies the name of the ConfigMap, within the same namespace as the controller, used as the lock for leader election. controller.reportIngressStatus.enableLeaderElection must be set to true.
+    leaderElectionLockName: "nginx-ingress-leader-election"
 
 rbac:
   ## Configures RBAC.

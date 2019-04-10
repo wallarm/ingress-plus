@@ -17,7 +17,7 @@ import (
 )
 
 // newLeaderElector creates a new LeaderElection and returns the Elector.
-func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.LeaderCallbacks, namespace string) (*leaderelection.LeaderElector, error) {
+func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.LeaderCallbacks, namespace string, lockName string) (*leaderelection.LeaderElector, error) {
 	podName := os.Getenv("POD_NAME")
 
 	broadcaster := record.NewBroadcaster()
@@ -27,7 +27,7 @@ func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.Lead
 	recorder := broadcaster.NewRecorder(scheme.Scheme, source)
 
 	lock := resourcelock.ConfigMapLock{
-		ConfigMapMeta: metav1.ObjectMeta{Namespace: namespace, Name: "leader-election"},
+		ConfigMapMeta: metav1.ObjectMeta{Namespace: namespace, Name: lockName},
 		Client:        client.CoreV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
 			Identity:      podName,

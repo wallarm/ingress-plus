@@ -74,6 +74,7 @@ type LoadBalancerController struct {
 	leaderElector           *leaderelection.LeaderElector
 	reportIngressStatus     bool
 	isLeaderElectionEnabled bool
+	leaderElectionLockName  string
 	resync                  time.Duration
 	namespace               string
 	controllerNamespace     string
@@ -96,6 +97,7 @@ type NewLoadBalancerControllerInput struct {
 	ControllerNamespace     string
 	ReportIngressStatus     bool
 	IsLeaderElectionEnabled bool
+	LeaderElectionLockName  string
 	WildcardTLSSecret       string
 	ConfigMaps              string
 }
@@ -111,6 +113,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		useIngressClassOnly:     input.UseIngressClassOnly,
 		reportIngressStatus:     input.ReportIngressStatus,
 		isLeaderElectionEnabled: input.IsLeaderElectionEnabled,
+		leaderElectionLockName:  input.LeaderElectionLockName,
 		resync:                  input.ResyncPeriod,
 		namespace:               input.Namespace,
 		controllerNamespace:     input.ControllerNamespace,
@@ -168,7 +171,7 @@ func (lbc *LoadBalancerController) UpdateManagedAndMergeableIngresses(ingresses 
 // addLeaderHandler adds the handler for leader election to the controller
 func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection.LeaderCallbacks) {
 	var err error
-	lbc.leaderElector, err = newLeaderElector(lbc.client, leaderHandler, lbc.controllerNamespace)
+	lbc.leaderElector, err = newLeaderElector(lbc.client, leaderHandler, lbc.controllerNamespace, lbc.leaderElectionLockName)
 	if err != nil {
 		glog.V(3).Infof("Error starting LeaderElection: %v", err)
 	}

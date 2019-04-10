@@ -29,6 +29,8 @@ Usage of ./nginx-ingress:
   -ingress-template-path string
     	Path to the ingress NGINX configuration template for an ingress resource.
 	(default for NGINX "nginx.ingress.tmpl"; default for NGINX Plus "nginx-plus.ingress.tmpl")
+  -leader-election-lock-name
+        Specifies the name of the ConfigMap, within the same namespace as the controller, used as the lock for leader election. Requires -enable-leader-election.
   -log_backtrace_at value
     	when logging hits line file:N, emit a stack trace
   -log_dir string

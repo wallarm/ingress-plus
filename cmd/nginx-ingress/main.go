@@ -84,6 +84,9 @@ The external address of the service is used when reporting the status of Ingress
 	leaderElectionEnabled = flag.Bool("enable-leader-election", false,
 		"Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources -- only one replica will report status. See -report-ingress-status flag.")
 
+	leaderElectionLockName = flag.String("leader-election-lock-name", "nginx-ingress-leader-election",
+		`Specifies the name of the ConfigMap, within the same namespace as the controller, used as the lock for leader election. Requires -enable-leader-election.`)
+
 	nginxStatusAllowCIDRs = flag.String("nginx-status-allow-cidrs", "127.0.0.1", `Whitelist IPv4 IP/CIDR blocks to allow access to NGINX stub_status or the NGINX Plus API. Separate multiple IP/CIDR by commas.`)
 
 	nginxStatusPort = flag.Int("nginx-status-port", 8080,
@@ -297,6 +300,7 @@ func main() {
 		ControllerNamespace:     controllerNamespace,
 		ReportIngressStatus:     *reportIngressStatus,
 		IsLeaderElectionEnabled: *leaderElectionEnabled,
+		LeaderElectionLockName:  *leaderElectionLockName,
 		WildcardTLSSecret:       *wildcardTLSSecret,
 		ConfigMaps:              *nginxConfigMaps,
 	}

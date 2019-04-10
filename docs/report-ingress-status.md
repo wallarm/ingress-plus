@@ -17,5 +17,6 @@ The Ingress controller must be configured to report an Ingress status:
     2. A Service of the type LoadBalancer configured with an external IP or address and specified by the `-external-service` command-line flag.
 3. If you're running multiple replicas of the Ingress controller, enable leader election with the `-enable-leader-election` flag
 to ensure that only one replica updates an Ingress status.
+4. By default, the Ingress controller will use a ConfigMap with the name `nginx-ingress-leader-election` as the lock. This can be customised via the `-leader-election-lock-name` flag.
 
 Notes: The Ingress controller does not clear the status of Ingress resources when it is being shut down.

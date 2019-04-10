@@ -65,6 +65,7 @@ Parameter | Description | Default
 `controller.image.repository` | The image repository of the Ingress controller. | nginx/nginx-ingress
 `controller.image.tag` | The tag of the Ingress controller image. | edge
 `controller.image.pullPolicy` | The pull policy for the Ingress controller image. | IfNotPresent
+`controller.config.name` | The name of the ConfigMap used by the Ingress controller. | nginx-config
 `controller.config.entries` | The entries of the ConfigMap for customizing NGINX configuration. | {}
 `controller.defaultTLS.cert` | The base64-encoded TLS certificate for the default HTTPS server. If not specified, a pre-generated self-signed certificate is used. **Note:** It is recommended that you specify your own certificate. | A pre-generated self-signed certificate.
 `controller.defaultTLS.key` | The base64-encoded TLS key for the default HTTPS server. **Note:** If not specified, a pre-generated key is used. It is recommended that you specify your own key. | A pre-generated key.
@@ -102,6 +103,7 @@ Parameter | Description | Default
 `controller.reportIngressStatus.enable` | Update the address field in the status of Ingresses resources with an external address of the Ingress controller. You must also specify the source of the external address either through an external service via `controller.reportIngressStatus.externalService` or the `external-status-address` entry in the ConfigMap via `controller.config.entries`. **Note:** `controller.config.entries.external-status-address` takes precedence if both are set. | true
 `controller.reportIngressStatus.externalService` | Specifies the name of the service with the type LoadBalancer through which the Ingress controller is exposed externally. The external address of the service is used when reporting the status of Ingress resources. `controller.reportIngressStatus.enable` must be set to `true`. | nginx-ingress
 `controller.reportIngressStatus.enableLeaderElection` | Enable Leader election to avoid multiple replicas of the controller reporting the status of Ingress resources. `controller.reportIngressStatus.enable` must be set to `true`. | true
+`controller.reportIngressStatus.leaderElectionLockName` | Specifies the name of the ConfigMap, within the same namespace as the controller, used as the lock for leader election. controller.reportIngressStatus.enableLeaderElection must be set to true. | nginx-ingress-leader-election
 `rbac.create` | Configures RBAC. | true
 `prometheus.create` | Expose NGINX or NGINX Plus metrics in the Prometheus format. | false
 `prometheus.port` | Configures the port to scrape the metrics. | 9113

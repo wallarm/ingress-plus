@@ -58,7 +58,7 @@ spec:
               fieldPath: metadata.name
         args:
           - -nginx-plus={{ .Values.controller.nginxplus }}
-          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+          - -nginx-configmaps=$(POD_NAMESPACE)/{{ .Values.controller.config.name }}
 {{- if .Values.controller.defaultTLS.secret }}
           - -default-server-tls-secret={{ .Values.controller.defaultTLS.secret }}
 {{ else }}
@@ -80,6 +80,7 @@ spec:
           - -report-ingress-status
           - -external-service={{ .Values.controller.reportIngressStatus.externalService }}
           - -enable-leader-election={{ .Values.controller.reportIngressStatus.enableLeaderElection }}
+          - -leader-election-lock-name={{ .Values.controller.reportIngressStatus.leaderElectionLockName }}
 {{- end }}
 {{- if .Values.controller.wildcardTLS.secret }}
           - -wildcard-tls-secret={{ .Values.controller.wildcardTLS.secret }}
