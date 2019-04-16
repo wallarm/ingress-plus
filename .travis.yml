@@ -3,11 +3,16 @@ sudo: required
 services:
 - docker
 go:
-- "1.10"
+- "1.12"
 script:
 - echo "Building ingress controller commit:${TRAVIS_COMMIT}"
-- cd nginx-controller && 
-  make  BUILD_IN_CONTAINER=0 container;
+- make  BUILD_IN_CONTAINER=0 container;
+- echo "Helm smoke test"
+- cd ${TRAVIS_BUILD_DIR} && wget -O helm.tar.gz ${helm_download} &&
+  tar xzfv helm.tar.gz -C ./ --strip-components=1 linux-amd64/helm
+- ./helm template deployments/helm-chart/ --name nginx-ingress
+- ./helm template deployments/helm-chart/ --name nginx-ingress -f deployments/helm-chart/values-plus.yaml
+- ./helm template deployments/helm-chart/ --name nginx-ingress -f deployments/helm-chart/values-icp.yaml
 before_install:
 - echo "PR Slug:${TRAVIS_PULL_REQUEST_SLUG}"
 - if [[ "${TRAVIS_PULL_REQUEST_SLUG}" == "nginxinc/kubernetes-ingress" || "${TRAVIS_PULL_REQUEST}" == "false" ]]; then

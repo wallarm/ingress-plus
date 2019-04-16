@@ -1,0 +1,109 @@
+{{- if eq .Values.controller.kind "daemonset" }}
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: {{ include "nginx-ingress.name" . }}
+  labels:
+    {{- include "nginx-ingress.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "nginx-ingress.name" . }}
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: {{ include "nginx-ingress.name" . }}
+        component: controller
+{{- if .Values.prometheus.create }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.prometheus.port }}"
+{{- end }}
+    spec:
+      serviceAccountName: {{ .Values.controller.serviceAccount.name }}
+      terminationGracePeriodSeconds: {{ .Values.controller.terminationGracePeriodSeconds }}
+{{- if .Values.controller.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.controller.nodeSelector | indent 8 }}
+{{- end }}
+{{- if .Values.controller.tolerations }}
+      tolerations:
+{{ toYaml .Values.controller.tolerations | indent 6 }}
+{{- end }}
+{{- if .Values.controller.affinity }}
+      affinity:
+{{ toYaml .Values.controller.affinity | indent 8 }}
+{{- end }}
+      hostNetwork: {{ .Values.controller.hostNetwork }}
+{{- if .Values.controller.wallarm.enabled }}
+      initContainers:
+{{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
+{{- end }}
+      volumes:
+        - name: wallarm
+          emptyDir: {}
+        - name: collectd-config
+          configMap:
+          name: {{ template "kubernetes-ingress.controller.fullname" . }}-collectd
+      containers:
+      - name: {{ include "nginx-ingress.name" . }}
+        image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+        imagePullPolicy: "{{ .Values.controller.image.pullPolicy }}"
+        ports:
+        - name: http
+          containerPort: 80
+          hostPort: 80
+        - name: https
+          containerPort: 443
+          hostPort: 443
+{{- if .Values.prometheus.create }}
+        - name: prometheus
+          containerPort: {{ .Values.prometheus.port }}
+{{- end }}
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+          - name: wallarm
+            mountPath: /etc/wallarm
+        args:
+          - -wallarm-tarantool-service={{ .Release.Namespace }}/{{ template "kubernetes-ingress.wallarmTarantoolName" . }}
+          - -nginx-plus={{ .Values.controller.nginxplus }}
+          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+{{- if .Values.controller.defaultTLS.secret }}
+          - -default-server-tls-secret={{ .Values.controller.defaultTLS.secret }}
+{{ else }}
+          - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+{{- end }}
+          - -ingress-class={{ .Values.controller.ingressClass }}
+          - -use-ingress-class-only={{ .Values.controller.useIngressClassOnly }}
+{{- if .Values.controller.watchNamespace }}
+          - -watch-namespace={{ .Values.controller.watchNamespace }}
+{{- end }}
+          - -health-status={{ .Values.controller.healthStatus }}
+          - -nginx-debug={{ .Values.controller.nginxDebug }}
+          - -nginx-status={{ .Values.controller.nginxStatus.enable }}
+{{- if .Values.controller.nginxStatus.enable }}
+          - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
+          - -nginx-status-allow-cidrs={{ .Values.controller.nginxStatus.allowCidrs }}
+{{- end }}
+{{- if .Values.controller.reportIngressStatus.enable }}
+          - -report-ingress-status
+          - -external-service={{ .Values.controller.reportIngressStatus.externalService }}
+          - -enable-leader-election={{ .Values.controller.reportIngressStatus.enableLeaderElection }}
+{{- end }}
+{{- if .Values.controller.wildcardTLS.secret }}
+          - -wildcard-tls-secret={{ .Values.controller.wildcardTLS.secret }}
+{{- else if and .Values.controller.wildcardTLS.cert .Values.controller.wildcardTLS.key }}
+          - -wildcard-tls-secret=$(POD_NAMESPACE)/wildcard-tls-secret
+{{- end }}
+          - -enable-prometheus-metrics={{ .Values.prometheus.create }}
+          - -prometheus-metrics-listen-port={{ .Values.prometheus.port }}
+{{- end }}

@@ -1,6 +1,6 @@
 # Custom Templates
 
-The Ingress controller allows you to customize your templates through a [ConfigMap](https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/customization) via the following keys:
+The Ingress controller allows you to customize your templates through a [ConfigMap](../../docs/configmap-and-annotations.md) via the following keys:
 * `main-template` - Sets the main NGINX configuration template.
 * `ingress-template` - Sets the Ingress NGINX configuration template for an Ingress resource.
 
@@ -25,7 +25,9 @@ data:
     ...
     }{{end}}
 ```
-**Note:** the templates are truncated for the clarity of the example.
+**Notes:**
+* The templates are truncated for the clarity of the example.
+* The templates for NGINX (the main `nginx.tmpl` and the Ingress `nginx.ingress.tmpl`) and NGINX Plus (the main `nginx-plus.tmpl` and the Ingress `nginx-plus.ingress.tmpl`) are located at [internal/configs/templates](../../internal/configs/templates/).
 
 ## Troubleshooting
 * If a custom template contained within the ConfigMap is invalid on startup, the Ingress controller will fail to start, the error will be reported in the Ingress controller logs.
