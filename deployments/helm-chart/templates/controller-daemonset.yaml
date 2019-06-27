@@ -10,10 +10,12 @@ spec:
   selector:
     matchLabels:
       app: {{ include "nginx-ingress.appName" . }}
+      component: controller
   template:
     metadata:
       labels:
         app: {{ include "nginx-ingress.appName" . }}
+        component: controller
 {{- if or (.Values.prometheus.create) (.Values.controller.pod.annotations) }}
       annotations:
 {{- if .Values.prometheus.create }}
@@ -40,6 +42,16 @@ spec:
 {{ toYaml .Values.controller.affinity | indent 8 }}
 {{- end }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
+{{- if .Values.controller.wallarm.enabled }}
+      initContainers:
+{{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
+{{- end }}
+      volumes:
+        - name: wallarm
+          emptyDir: {}
+        - name: collectd-config
+          configMap:
+          name: {{ template "kubernetes-ingress.controller.fullname" . }}-collectd
       containers:
       - name: {{ include "nginx-ingress.name" . }}
         image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
@@ -64,7 +76,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        volumeMounts:
+          - name: wallarm
+            mountPath: /etc/wallarm
         args:
+          - -wallarm-tarantool-service={{ .Release.Namespace }}/{{ template "kubernetes-ingress.wallarmTarantoolName" . }}
           - -nginx-plus={{ .Values.controller.nginxplus }}
           - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
 {{- if .Values.controller.defaultTLS.secret }}

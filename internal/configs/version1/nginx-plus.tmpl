@@ -1,3 +1,5 @@
+{{- if .EnableWallarm }}
+load_module /etc/nginx/modules/ngx_http_wallarm_module.so;{{ end }}
 
 user  nginx;
 worker_processes  {{.WorkerProcesses}};
@@ -23,6 +25,15 @@ events {
 }
 
 http {
+    {{- if $.EnableWallarm }}
+    wallarm_upstream_connect_attempts {{.WallarmUpstreamConnectAttempts}};
+    wallarm_upstream_reconnect_interval {{.WallarmUpstreamReconnectInterval}};
+    wallarm_process_time_limit {{.WallarmProcessTimeLimit}};
+    wallarm_process_time_limit_block {{.WallarmProcessTimeLimitBlock}};
+    wallarm_request_memory_limit {{.WallarmRequestMemoryLimit}};
+    wallarm_worker_rlimit_vmem {{.WallarmWorkerRlimitVmem}};
+    {{- end }}
+
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
 
@@ -135,6 +146,24 @@ http {
             api write=on;
         }
     }
+
+    {{- if $.EnableWallarm}}
+    server {
+        listen 18080;
+
+        root /usr/share/nginx/html;
+
+        access_log off;
+
+        location /wallarm-status {
+            wallarm_status on format=json;
+        }
+
+        location /wallarm-metrics {
+            wallarm_status on format=prometheus;
+        }
+    }
+    {{- end}}
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;

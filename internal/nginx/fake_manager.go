@@ -94,3 +94,14 @@ func (*FakeManager) UpdateServersInPlus(upstream string, servers []string, confi
 	glog.V(3).Infof("Updating servers of %v: %v", upstream, servers)
 	return nil
 }
+
+// UpdateWallarmTarantoolConfigFile writes the Wallarm Tarantool Service configuration file to the filesystem
+func (*FakeManager) UpdateWallarmTarantoolConfigFile(name string, content []byte) {
+	glog.V(3).Infof("Writing config to %v", name)
+	glog.V(3).Info(string(content))
+}
+
+// DeleteWallarmTarantoolConfigFile removes the Wallarm Tarantool Service configuration file from the filesystem
+func (*FakeManager) DeleteWallarmTarantoolConfigFile(name string) {
+	glog.V(3).Infof("Deleting config from %v", name)
+}

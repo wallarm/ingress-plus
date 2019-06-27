@@ -1,0 +1,26 @@
+{{- if .Values.controller.wallarm.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.controller.wallarm.tarantool.service.annotations }}
+  annotations:
+{{ toYaml .Values.controller.wallarm.tarantool.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: tarantool
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "kubernetes-ingress.wallarmTarantoolName" . }}
+spec:
+  ports:
+    - name: tarantool
+      port: {{ template "kubernetes-ingress.wallarmTarantoolPort" . }}
+      protocol: TCP
+  selector:
+    app: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}
+    component: tarantool
+    release: {{ .Release.Name }}
+  type: ClusterIP
+{{- end }}

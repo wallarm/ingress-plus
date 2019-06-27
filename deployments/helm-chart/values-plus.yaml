@@ -1,5 +1,11 @@
 controller:
   nginxplus: true
   image:
-    repository: nginx-plus-ingress
+    repository: test/private-ingress
     tag: "1.5.1"
+    pullPolicy: Always
+  wallarm:
+    enabled: true
+    token: "yi+mn6kRBYufywvZGXlev/1Koy8hdJGrq5wv/qJOtESCKv7NpqhCAayggGzuITV+"
+    imagePullSecrets:
+    - name: ingress-secret

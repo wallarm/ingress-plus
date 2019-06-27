@@ -105,6 +105,7 @@ func generateNginxCfg(ingEx *IngressEx, pems map[string]string, isMinion bool, b
 			ServerSnippets:        cfgParams.ServerSnippets,
 			Ports:                 cfgParams.Ports,
 			SSLPorts:              cfgParams.SSLPorts,
+			Wallarm:               cfgParams.Wallarm,
 		}
 
 		if pemFile, ok := pems[serverName]; ok {

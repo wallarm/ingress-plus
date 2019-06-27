@@ -38,12 +38,11 @@ This chart deploys the NGINX Ingress controller in your Kubernetes cluster.
 
 1. Clone the Ingress controller repo and check out the latest stable version:
     ```
-    $ git clone https://github.com/nginxinc/kubernetes-ingress/
-    $ git checkout v1.5.1
+    $ git clone https://github.com/wallarm/ingress-plus/
     ```
 2. Change your working directory to /deployments/helm-chart:
     ```
-    $ cd kubernetes-ingress/deployments/helm-chart
+    $ cd ingress-plus/deployments/helm-chart
     ```
 3. To install the chart with the release name my-release (my-release is the name that you choose):
 

@@ -315,6 +315,10 @@ func ParseConfigMap(cfgm *v1.ConfigMap, nginxPlus bool) *ConfigParams {
 		cfgParams.IngressTemplate = &ingressTemplate
 	}
 
+	if wallarmTarantoolTemplate, exists := cfgm.Data["wallarm-tarantool-template"]; exists {
+		cfgParams.WallarmTarantoolTemplate = &wallarmTarantoolTemplate
+	}
+
 	if mainStreamSnippets, exists, err := GetMapKeyAsStringSlice(cfgm.Data, "stream-snippets", cfgm, "\n"); exists {
 		if err != nil {
 			glog.Error(err)
@@ -391,6 +395,57 @@ func ParseConfigMap(cfgm *v1.ConfigMap, nginxPlus bool) *ConfigParams {
 		}
 	}
 
+	if enableWallarm, exists, err := GetMapKeyAsBool(cfgm.Data, "enable-wallarm", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfgParams.MainEnableWallarm = enableWallarm
+		}
+	}
+	if wallarmUpstreamService, exists := cfgm.Data["wallarm-upstream-service"]; exists {
+		cfgParams.MainWallarmUpstreamService = wallarmUpstreamService
+	}
+	if wallarmUpstreamConnectAttempts, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-connect-attempts", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfgParams.MainWallarmUpstreamConnectAttempts = wallarmUpstreamConnectAttempts
+		}
+	}
+	if wallarmUpstreamReconnectInterval, exists := cfgm.Data["wallarm-upstream-reconnect-interval"]; exists {
+		cfgParams.MainWallarmUpstreamReconnectInterval = wallarmUpstreamReconnectInterval
+	}
+	if wallarmUpstreamMaxFails, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-upstream-max-fails", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfgParams.MainWallarmUpstreamMaxFails = wallarmUpstreamMaxFails
+		}
+	}
+	if wallarmUpstreamFailTimeout, exists := cfgm.Data["wallarm-upstream-fail-timeout"]; exists {
+		cfgParams.MainWallarmUpstreamFailTimeout = wallarmUpstreamFailTimeout
+	}
+
+	if wallarmAclMapsize, exists := cfgm.Data["wallarm-acl-mapsize"]; exists {
+		cfgParams.MainWallarmAclMapsize = wallarmAclMapsize
+	}
+	if wallarmProcessTimeLimit, exists, err := GetMapKeyAsInt(cfgm.Data, "wallarm-process-time-limit", cfgm); exists {
+		if err != nil {
+			glog.Error(err)
+		} else {
+			cfgParams.MainWallarmProcessTimeLimit = wallarmProcessTimeLimit
+		}
+	}
+	if wallarmProcessTimeLimitBlock, exists := cfgm.Data["wallarm-process-time-limit-block"]; exists {
+		cfgParams.MainWallarmProcessTimeLimitBlock = wallarmProcessTimeLimitBlock
+	}
+	if wallarmRequestMemoryLimit, exists := cfgm.Data["wallarm-request-memory-limit"]; exists {
+		cfgParams.MainWallarmRequestMemoryLimit = wallarmRequestMemoryLimit
+	}
+	if wallarmWorkerRlimitVmem, exists := cfgm.Data["wallarm-worker-rlimit-vmem"]; exists {
+		cfgParams.MainWallarmWorkerRlimitVmem = wallarmWorkerRlimitVmem
+	}
+
 	return cfgParams
 }
 
@@ -431,6 +486,18 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		KeepaliveRequests:              config.MainKeepaliveRequests,
 		VariablesHashBucketSize:        config.VariablesHashBucketSize,
 		VariablesHashMaxSize:           config.VariablesHashMaxSize,
+
+	   EnableWallarm:                    config.MainEnableWallarm,
+	   WallarmUpstreamService:           config.MainWallarmUpstreamService,
+	   WallarmUpstreamConnectAttempts:   config.MainWallarmUpstreamConnectAttempts,
+	   WallarmUpstreamReconnectInterval: config.MainWallarmUpstreamReconnectInterval,
+	   WallarmUpstreamMaxFails:          config.MainWallarmUpstreamMaxFails,
+	   WallarmUpstreamFailTimeout:       config.MainWallarmUpstreamFailTimeout,
+	   WallarmAclMapsize:                config.MainWallarmAclMapsize,
+	   WallarmProcessTimeLimit:          config.MainWallarmProcessTimeLimit,
+	   WallarmProcessTimeLimitBlock:     config.MainWallarmProcessTimeLimitBlock,
+	   WallarmRequestMemoryLimit:        config.MainWallarmRequestMemoryLimit,
+	   WallarmWorkerRlimitVmem:          config.MainWallarmWorkerRlimitVmem,
 	}
 	return nginxCfg
 }

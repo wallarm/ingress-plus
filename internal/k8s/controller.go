@@ -91,6 +91,7 @@ type LoadBalancerController struct {
 	controllerNamespace          string
 	wildcardTLSSecret            string
 	areCustomResourcesEnabled    bool
+	wallarmTarantoolServiceName  string
 	metricsCollector             collectors.ControllerCollector
 }
 
@@ -115,6 +116,7 @@ type NewLoadBalancerControllerInput struct {
 	WildcardTLSSecret         string
 	ConfigMaps                string
 	AreCustomResourcesEnabled bool
+	WallarmTarantoolServiceName string
 	MetricsCollector          collectors.ControllerCollector
 }
 
@@ -136,6 +138,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		controllerNamespace:       input.ControllerNamespace,
 		wildcardTLSSecret:         input.WildcardTLSSecret,
 		areCustomResourcesEnabled: input.AreCustomResourcesEnabled,
+		wallarmTarantoolServiceName: input.WallarmTarantoolServiceName,
 		metricsCollector:          input.MetricsCollector,
 	}
 
@@ -337,6 +340,7 @@ func (lbc *LoadBalancerController) syncEndpoint(task task) {
 
 	obj, endpExists, err := lbc.endpointLister.GetByKey(key)
 	if err != nil {
+		glog.V(3).Infof("Error syncing endpoints %v: %v", key, err)
 		lbc.syncQueue.Requeue(task, err)
 		return
 	}
@@ -396,6 +400,13 @@ func (lbc *LoadBalancerController) syncEndpoint(task task) {
 			}
 		}
 
+		endp := obj.(*api_v1.Endpoints)
+		svc := lbc.getServiceForEndpoints(endp)
+		if svc != nil && lbc.isWallarmTarantoolService(svc) {
+			if err := lbc.configurator.AddOrUpdateWallarmTarantool(endp); err != nil {
+				glog.Errorf("Error updating Wallarm tarantool: %v", err)
+			}
+		}
 		if lbc.areCustomResourcesEnabled {
 			virtualServers := lbc.getVirtualServersForEndpoints(obj.(*api_v1.Endpoints))
 			virtualServersExes := lbc.virtualServersToVirtualServerExes(virtualServers)
@@ -559,7 +570,11 @@ func (lbc *LoadBalancerController) sync(task task) {
 	case secret:
 		lbc.syncSecret(task)
 	case service:
-		lbc.syncExternalService(task)
+		if task.Key == lbc.wallarmTarantoolServiceName {
+			lbc.syncWallarmTarantool(task)
+		} else {
+			lbc.syncExternalService(task)
+		}
 	case virtualserver:
 		lbc.syncVirtualServer(task)
 	case virtualServerRoute:
@@ -809,6 +824,19 @@ func (lbc *LoadBalancerController) syncExternalService(task task) {
 		if err != nil {
 			glog.Errorf("error updating ingress status in syncExternalService: %v", err)
 		}
+	}
+}
+
+func (lbc *LoadBalancerController) syncWallarmTarantool(task task) {
+	key := task.Key
+	_, exists, err := lbc.svcLister.GetByKey(key)
+	if err != nil {
+		lbc.syncQueue.Requeue(task, err)
+		return
+	}
+	if !exists {
+		// service got removed
+		lbc.configurator.DeleteWallarmTarantool(key)
 	}
 }
 
@@ -1922,4 +1950,35 @@ func (lbc *LoadBalancerController) createMergableIngresses(master *extensions.In
 	mergeableIngresses.Minions = minions
 
 	return &mergeableIngresses, nil
+}
+
+func (lbc *LoadBalancerController) isWallarmTarantoolService(svc *api_v1.Service) bool {
+	svcName := svc.Namespace + "/" + svc.Name
+	return svcName == lbc.wallarmTarantoolServiceName
+}
+
+func (lbc *LoadBalancerController) enqueueEndpointsForService(svc *api_v1.Service) {
+	endp, err := lbc.endpointLister.GetServiceEndpoints(svc)
+
+	if err != nil {
+		glog.V(3).Infof("ignoring service %v: %v", svc.Name, err)
+		return
+	}
+
+	lbc.syncQueue.Enqueue(&endp)
+}
+
+func (lbc *LoadBalancerController) getServiceForEndpoints(endp *api_v1.Endpoints) *api_v1.Service {
+	svcKey := endp.GetNamespace() + "/" + endp.GetName()
+	svcObj, svcExists, err := lbc.svcLister.GetByKey(svcKey)
+	if err != nil {
+		glog.V(3).Infof("error getting service %v from the cache: %v", svcKey, err)
+		return nil
+	}
+	if !svcExists {
+		glog.V(3).Infof("Service %v not found", svcKey)
+		return nil
+	}
+
+	return svcObj.(*api_v1.Service)
 }

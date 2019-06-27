@@ -6,6 +6,9 @@ metadata:
   labels:
     {{- include "nginx-ingress.labels" . | nindent 4 }}
 data:
+{{- if .Values.controller.wallarm.enabled }}
+  enable-wallarm: "true"
+{{- end }}
 {{- if .Values.controller.config.entries }}
 {{ toYaml .Values.controller.config.entries | indent 2 }}
 {{- end }}

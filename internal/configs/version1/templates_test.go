@@ -10,6 +10,7 @@ const nginxIngressTmpl = "nginx.ingress.tmpl"
 const nginxMainTmpl = "nginx.tmpl"
 const nginxPlusIngressTmpl = "nginx-plus.ingress.tmpl"
 const nginxPlusMainTmpl = "nginx-plus.tmpl"
+const wallarmTarantoolTmpl = "wallarm-tarantool.tmpl"
 
 var testUps = Upstream{
 	Name: "test",
@@ -107,6 +108,17 @@ var mainCfg = MainConfig{
 	VariablesHashMaxSize:    1024,
 }
 
+var wallarmTarantoolCfg = WallarmTarantoolConfig{
+	UpstreamServers: []UpstreamServer{
+		{
+			Address:     "127.0.0.1",
+			Port:        "3313",
+			MaxFails:    3,
+			FailTimeout: "20s",
+		},
+	},
+}
+
 func TestIngressForNGINXPlus(t *testing.T) {
 	tmpl, err := template.New(nginxPlusIngressTmpl).ParseFiles(nginxPlusIngressTmpl)
 	if err != nil {
@@ -162,6 +174,21 @@ func TestMainForNGINX(t *testing.T) {
 
 	err = tmpl.Execute(&buf, mainCfg)
 	t.Log(buf.String())
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+}
+
+func TestWallarmTarantool(t *testing.T) {
+	tmpl, err := template.New(wallarmTarantoolTmpl).ParseFiles(wallarmTarantoolTmpl)
+	if err != nil {
+		t.Fatalf("Failed to parse template file: %v", err)
+	}
+
+	var buf bytes.Buffer
+
+	err = tmpl.Execute(&buf, wallarmTarantoolCfg)
+	t.Log(string(buf.Bytes()))
 	if err != nil {
 		t.Fatalf("Failed to write template %v", err)
 	}

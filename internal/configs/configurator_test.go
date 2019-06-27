@@ -22,7 +22,7 @@ func createTestStaticConfigParams() *StaticConfigParams {
 }
 
 func createTestConfigurator() (*Configurator, error) {
-	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
+	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl", "version1/wallarm-tarantool.tmpl")
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func createTestConfigurator() (*Configurator, error) {
 }
 
 func createTestConfiguratorInvalidIngressTemplate() (*Configurator, error) {
-	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
+	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl", "version1/wallarm-tarantool.tmpl")
 	if err != nil {
 		return nil, err
 	}

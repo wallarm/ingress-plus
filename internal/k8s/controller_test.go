@@ -992,7 +992,7 @@ func TestFindIngressesForSecret(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			fakeClient := fake.NewSimpleClientset()
 
-			templateExecutor, err := version1.NewTemplateExecutor("../configs/version1/nginx-plus.tmpl", "../configs/version1/nginx-plus.ingress.tmpl")
+			templateExecutor, err := version1.NewTemplateExecutor("../configs/version1/nginx-plus.tmpl", "../configs/version1/nginx-plus.ingress.tmpl", "../configs/version1/wallarm-tarantool.tmpl")
 			if err != nil {
 				t.Fatalf("templateExecutor could not start: %v", err)
 			}
@@ -1183,7 +1183,7 @@ func TestFindIngressesForSecretWithMinions(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			fakeClient := fake.NewSimpleClientset()
 
-			templateExecutor, err := version1.NewTemplateExecutor("../configs/version1/nginx-plus.tmpl", "../configs/version1/nginx-plus.ingress.tmpl")
+			templateExecutor, err := version1.NewTemplateExecutor("../configs/version1/nginx-plus.tmpl", "../configs/version1/nginx-plus.ingress.tmpl", "../configs/version1/wallarm-tarantool.tmpl")
 			if err != nil {
 				t.Fatalf("templateExecutor could not start: %v", err)
 			}

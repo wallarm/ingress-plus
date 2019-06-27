@@ -85,6 +85,10 @@ var (
 		`Path to the VirtualServer NGINX configuration template for a VirtualServer resource.
 	(default for NGINX "nginx.virtualserver.tmpl"; default for NGINX Plus "nginx-plus.virtualserver.tmpl")`)
 
+	wallarmTarantoolTemplatePath = flag.String("wallarm-tarantool-template-path", "",
+		`Path to the Wallarm Tarantool Service configuration template.
+	(default for NGINX "wallarm-tarantool.tmpl")`)
+
 	externalService = flag.String("external-service", "",
 		`Specifies the name of the service with the type LoadBalancer through which the Ingress controller pods are exposed externally.
 The external address of the service is used when reporting the status of Ingress resources. Requires -report-ingress-status.`)
@@ -97,6 +101,9 @@ The external address of the service is used when reporting the status of Ingress
 
 	leaderElectionLockName = flag.String("leader-election-lock-name", "nginx-ingress-leader-election",
 		`Specifies the name of the ConfigMap, within the same namespace as the controller, used as the lock for leader election. Requires -enable-leader-election.`)
+
+	wallarmTarantoolService = flag.String("wallarm-tarantool-service", "",
+		`Specifies the name of the Wallarm postanalytics service in form namespace/servicename`)
 
 	nginxStatusAllowCIDRs = flag.String("nginx-status-allow-cidrs", "127.0.0.1", `Whitelist IPv4 IP/CIDR blocks to allow access to NGINX stub_status or the NGINX Plus API. Separate multiple IP/CIDR by commas.`)
 
@@ -199,6 +206,7 @@ func main() {
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 		nginxVirtualServerTemplatePath = "nginx-plus.virtualserver.tmpl"
 	}
+	nginxWallarmTarantoolTemplatePath := "wallarm-tarantool.tmpl"
 
 	if *mainTemplatePath != "" {
 		nginxConfTemplatePath = *mainTemplatePath
@@ -209,13 +217,16 @@ func main() {
 	if *virtualServerTemplatePath != "" {
 		nginxVirtualServerTemplatePath = *virtualServerTemplatePath
 	}
+	if *wallarmTarantoolTemplatePath != "" {
+		nginxWallarmTarantoolTemplatePath = *wallarmTarantoolTemplatePath
+	}
 
 	nginxBinaryPath := "/usr/sbin/nginx"
 	if *nginxDebug {
 		nginxBinaryPath = "/usr/sbin/nginx-debug"
 	}
 
-	templateExecutor, err := version1.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath)
+	templateExecutor, err := version1.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath, nginxWallarmTarantoolTemplatePath)
 	if err != nil {
 		glog.Fatalf("Error creating TemplateExecutor: %v", err)
 	}
@@ -374,6 +385,7 @@ func main() {
 		ReportIngressStatus:       *reportIngressStatus,
 		IsLeaderElectionEnabled:   *leaderElectionEnabled,
 		LeaderElectionLockName:    *leaderElectionLockName,
+		WallarmTarantoolServiceName: *wallarmTarantoolService,
 		WildcardTLSSecret:         *wildcardTLSSecret,
 		ConfigMaps:                *nginxConfigMaps,
 		AreCustomResourcesEnabled: *enableCustomResources,

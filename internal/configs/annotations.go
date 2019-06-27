@@ -3,6 +3,7 @@ package configs
 import (
 	"errors"
 	"fmt"
+	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
 	"regexp"
 	"strconv"
 	"strings"
@@ -289,6 +290,43 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if failTimeout, exists := ingEx.Ingress.Annotations["nginx.org/fail-timeout"]; exists {
 		cfgParams.FailTimeout = failTimeout
+	}
+	if cfgParams.MainEnableWallarm {
+		cfgParams.Wallarm = version1.NewWallarm()
+		if mode, exists := ingEx.Ingress.Annotations["wallarm.com/mode"]; exists {
+			cfgParams.Wallarm.Mode = mode
+		}
+		if modeAllowOverride, exists := ingEx.Ingress.Annotations["wallarm.com/mode-allow-override"]; exists {
+			cfgParams.Wallarm.ModeAllowOverride = modeAllowOverride
+		}
+		if fallback, exists := ingEx.Ingress.Annotations["wallarm.com/fallback"]; exists {
+			cfgParams.Wallarm.Fallback = fallback
+		}
+		if instance, exists := ingEx.Ingress.Annotations["wallarm.com/instance"]; exists {
+			cfgParams.Wallarm.Instance = instance
+		}
+		if blockPage, exists := ingEx.Ingress.Annotations["wallarm.com/block-page"]; exists {
+			cfgParams.Wallarm.BlockPage = blockPage
+		}
+		if parseResponse, exists := ingEx.Ingress.Annotations["wallarm.com/parse-response"]; exists {
+			cfgParams.Wallarm.ParseResponse = parseResponse
+		}
+		if parseWebsocket, exists := ingEx.Ingress.Annotations["wallarm.com/parse-websocket"]; exists {
+			cfgParams.Wallarm.ParseWebsocket = parseWebsocket
+		}
+		if unpackResponse, exists := ingEx.Ingress.Annotations["wallarm.com/unpack-response"]; exists {
+			cfgParams.Wallarm.UnpackResponse = unpackResponse
+		}
+		if parserDisable, exists, err := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "wallarm.com/parser-disable", ingEx.Ingress, ","); exists {
+			if err != nil {
+				glog.Error(err)
+			} else {
+				for i, v := range parserDisable {
+					parserDisable[i] = strings.TrimSpace(v)
+				}
+				cfgParams.Wallarm.ParserDisable = parserDisable
+			}
+		}
 	}
 
 	return cfgParams

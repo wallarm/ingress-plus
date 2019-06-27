@@ -48,6 +48,18 @@ type HealthCheck struct {
 	TimeoutSeconds int64
 }
 
+type Wallarm struct {
+	Mode              string
+	ModeAllowOverride string
+	Fallback          string
+	Instance          string
+	BlockPage         string
+	ParseResponse     string
+	ParseWebsocket    string
+	UnpackResponse    string
+	ParserDisable     []string
+}
+
 // Server describes an NGINX server.
 type Server struct {
 	ServerSnippets        []string
@@ -82,6 +94,7 @@ type Server struct {
 
 	Ports    []int
 	SSLPorts []int
+	Wallarm *Wallarm
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -115,6 +128,7 @@ type Location struct {
 	ProxyBufferSize      string
 	ProxyMaxTempFileSize string
 	JWTAuth              *JWTAuth
+	Wallarm              *Wallarm
 
 	MinionIngress *Ingress
 }
@@ -155,6 +169,23 @@ type MainConfig struct {
 	KeepaliveRequests              int64
 	VariablesHashBucketSize        uint64
 	VariablesHashMaxSize           uint64
+
+	EnableWallarm                    bool
+	WallarmUpstreamService           string
+	WallarmUpstreamConnectAttempts   int
+	WallarmUpstreamReconnectInterval string
+	WallarmUpstreamMaxFails          int
+	WallarmUpstreamFailTimeout       string
+	WallarmAclMapsize                string
+	WallarmProcessTimeLimit          int
+	WallarmProcessTimeLimitBlock     string
+	WallarmRequestMemoryLimit        string
+	WallarmWorkerRlimitVmem          string
+}
+
+type WallarmTarantoolConfig struct {
+	EnableWallarm bool
+	UpstreamServers []UpstreamServer
 }
 
 // NewUpstreamWithDefaultServer creates an upstream with the default server.
@@ -172,4 +203,20 @@ func NewUpstreamWithDefaultServer(name string) Upstream {
 			},
 		},
 	}
+}
+
+func NewWallarm() *Wallarm {
+	wallarm := Wallarm{
+		Mode:              "off",
+		ModeAllowOverride: "on",
+		Fallback:          "on",
+		Instance:          "",
+		BlockPage:         "",
+		ParseResponse:     "on",
+		ParseWebsocket:    "off",
+		UnpackResponse:    "on",
+		ParserDisable:     []string{},
+	}
+
+	return &wallarm
 }

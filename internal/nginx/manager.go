@@ -45,6 +45,8 @@ type Manager interface {
 	UpdateConfigVersionFile()
 	SetPlusClients(plusClient *client.NginxClient, plusConfigVersionCheckClient *http.Client)
 	UpdateServersInPlus(upstream string, servers []string, config ServerConfig) error
+	UpdateWallarmTarantoolConfigFile(name string, content []byte)
+	DeleteWallarmTarantoolConfigFile(name string)
 }
 
 // LocalManager updates NGINX configuration, starts, reloads and quits NGINX,
@@ -128,6 +130,10 @@ func (lm *LocalManager) DeleteConfig(name string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
+}
+
+func (lm *LocalManager) getWallarmTarantoolConfigFileName(name string) string {
+	return lm.getFilenameForConfig("wallarm-tarantool-" + name)
 }
 
 // CreateSecret creates a secret file with the specified name, content and mode. If the file already exists,
@@ -299,4 +305,28 @@ func verifyConfigVersion(httpClient *http.Client, configVersion int) error {
 	}
 
 	return nil
+}
+
+// UpdateWallarmTarantoolConfigFile writes the Wallarm Tarantool Service configuration file to the filesystem
+func (lm *LocalManager) UpdateWallarmTarantoolConfigFile(name string, content []byte) {
+	filename := lm.getWallarmTarantoolConfigFileName(name)
+
+	glog.V(3).Infof("Writing config to %v", filename)
+	glog.V(3).Info(string(content))
+
+	err := createFileAndWrite(filename, content)
+	if err != nil {
+		glog.Fatalf("Failed to write config to %v: %v", filename, err)
+	}
+}
+
+// DeleteWallarmTarantoolConfigFile removes the Wallarm Tarantool Service configuration file from the filesystem
+func (lm *LocalManager) DeleteWallarmTarantoolConfigFile(name string) {
+	filename := lm.getWallarmTarantoolConfigFileName(name)
+
+	glog.V(3).Infof("Deleting config from %v", filename)
+
+	if err := os.Remove(filename); err != nil {
+		glog.Warningf("Failed to delete config from %v: %v", filename, err)
+	}
 }

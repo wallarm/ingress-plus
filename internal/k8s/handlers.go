@@ -199,6 +199,11 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 				lbc.AddSyncQueue(svc)
 				return
 			}
+			if lbc.isWallarmTarantoolService(svc) {
+				glog.V(3).Infof("Adding endpoints for Wallarm tarantool service: %v", svc.Name)
+				lbc.enqueueEndpointsForService(svc)
+				return
+			}
 			glog.V(3).Infof("Adding service: %v", svc.Name)
 			lbc.EnqueueIngressForService(svc)
 
@@ -220,7 +225,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 					return
 				}
 			}
-			if lbc.IsExternalServiceForStatus(svc) {
+			if lbc.IsExternalServiceForStatus(svc) || lbc.isWallarmTarantoolService(svc) {
 				lbc.AddSyncQueue(svc)
 				return
 			}
@@ -238,6 +243,10 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 				curSvc := cur.(*v1.Service)
 				if lbc.IsExternalServiceForStatus(curSvc) {
 					lbc.AddSyncQueue(curSvc)
+					return
+				}
+				if lbc.isWallarmTarantoolService(curSvc) {
+					lbc.enqueueEndpointsForService(curSvc)
 					return
 				}
 				oldSvc := old.(*v1.Service)

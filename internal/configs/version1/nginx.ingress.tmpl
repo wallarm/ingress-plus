@@ -9,6 +9,25 @@ upstream {{$upstream.Name}} {
 
 {{range $server := .Servers}}
 server {
+	{{if $server.Wallarm}}
+	wallarm_mode                 {{$server.Wallarm.Mode}};
+	wallarm_mode_allow_override  {{$server.Wallarm.ModeAllowOverride}};
+	wallarm_fallback             {{$server.Wallarm.Fallback}};
+	{{if not (eq $server.Wallarm.Instance "")}}
+	wallarm_instance             {{$server.Wallarm.Instance}};
+	{{end}}
+	{{if not (eq $server.Wallarm.BlockPage "")}}
+	wallarm_block_page           "{{$server.Wallarm.BlockPage}}";
+	{{end}}
+	wallarm_parse_response       {{$server.Wallarm.ParseResponse}};
+	wallarm_parse_websocket      {{$server.Wallarm.ParseWebsocket}};
+	wallarm_unpack_response      {{$server.Wallarm.UnpackResponse}};
+
+	{{range $parser := $server.Wallarm.ParserDisable}}wallarm_parser_disable {{$parser}};
+	{{end}}
+
+	{{end}}
+
 	{{if not $server.GRPCOnly}}
 	{{range $port := $server.Ports}}
 	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
@@ -75,6 +94,25 @@ server {
 
 	{{range $location := $server.Locations}}
 	location {{$location.Path}} {
+		{{if $location.Wallarm}}
+		wallarm_mode                 {{$location.Wallarm.Mode}};
+		wallarm_mode_allow_override  {{$location.Wallarm.ModeAllowOverride}};
+		wallarm_fallback             {{$location.Wallarm.Fallback}};
+		{{if not (eq $location.Wallarm.Instance "")}}
+		wallarm_instance             "{{$location.Wallarm.Instance}}";
+		{{end}}
+		{{if not (eq $location.Wallarm.BlockPage "")}}
+		wallarm_block_page           "{{$location.Wallarm.BlockPage}}";
+		{{end}}
+		wallarm_parse_response       {{$location.Wallarm.ParseResponse}};
+		wallarm_parse_websocket      {{$location.Wallarm.ParseWebsocket}};
+		wallarm_unpack_response      {{$location.Wallarm.UnpackResponse}};
+
+		{{range $parser := $location.Wallarm.ParserDisable}}wallarm_parser_disable {{$parser}};
+		{{end}}
+
+		{{end}}
+
 		{{with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
 		{{end}}

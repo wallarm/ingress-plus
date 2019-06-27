@@ -1,5 +1,8 @@
 package configs
 
+import (
+	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
+)
 // ConfigParams holds NGINX configuration parameters that affect the main NGINX config
 // as well as configs for Ingress resources.
 type ConfigParams struct {
@@ -66,6 +69,7 @@ type ConfigParams struct {
 
 	MainTemplate    *string
 	IngressTemplate *string
+	WallarmTarantoolTemplate *string
 
 	JWTRealm    string
 	JWTKey      string
@@ -74,6 +78,20 @@ type ConfigParams struct {
 
 	Ports    []int
 	SSLPorts []int
+
+	MainEnableWallarm                    bool
+	MainWallarmUpstreamService           string
+	MainWallarmUpstreamConnectAttempts   int
+	MainWallarmUpstreamReconnectInterval string
+	MainWallarmUpstreamMaxFails          int
+	MainWallarmUpstreamFailTimeout       string
+	MainWallarmAclMapsize                string
+	MainWallarmProcessTimeLimit          int
+	MainWallarmProcessTimeLimitBlock     string
+	MainWallarmRequestMemoryLimit        string
+	MainWallarmWorkerRlimitVmem          string
+
+	Wallarm *version1.Wallarm
 }
 
 // StaticConfigParams holds immutable NGINX configuration parameters that affect the main NGINX config.
@@ -109,5 +127,15 @@ func NewDefaultConfigParams() *ConfigParams {
 		MainKeepaliveRequests:      100,
 		VariablesHashBucketSize:    256,
 		VariablesHashMaxSize:       1024,
+		MainEnableWallarm:                    false,
+		MainWallarmUpstreamConnectAttempts:   10,
+		MainWallarmUpstreamReconnectInterval: "15s",
+		MainWallarmUpstreamMaxFails:          1,
+		MainWallarmUpstreamFailTimeout:       "10",
+		MainWallarmAclMapsize:                "64m",
+		MainWallarmProcessTimeLimit:          1000,
+		MainWallarmProcessTimeLimitBlock:     "attack",
+		MainWallarmRequestMemoryLimit:        "0",
+		MainWallarmWorkerRlimitVmem:          "1g",
 	}
 }

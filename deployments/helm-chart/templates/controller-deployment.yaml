@@ -11,10 +11,12 @@ spec:
   selector:
     matchLabels:
       app: {{ include "nginx-ingress.appName" . }}
+      component: controller
   template:
     metadata:
       labels:
         app: {{ include "nginx-ingress.appName" . }}
+        component: controller
 {{- if or (.Values.prometheus.create) (.Values.controller.pod.annotations) }}
       annotations:
 {{- if .Values.prometheus.create }}
@@ -40,7 +42,23 @@ spec:
 {{- end }}
       serviceAccountName: {{ include "nginx-ingress.serviceAccountName" . }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
+      {{- if .Values.controller.wallarm.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.controller.wallarm.imagePullSecrets | indent 8 }}
+      {{- end }}
+      initContainers:
+{{ include "kubernetes-ingress.wallarmInitContainer" . | indent 8 }}
+      volumes:
+        - name: wallarm
+          emptyDir: {}
+        - name: collectd-config
+          configMap:
+            name: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}-collectd
       containers:
+{{- if .Values.controller.wallarm.enabled }}
+{{ include "kubernetes-ingress.wallarmCollectdContainer" . | indent 6 }}
+{{ include "kubernetes-ingress.wallarmSyncnodeContainer" . | indent 6 }}
+{{- end }}
       - image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
         name: {{ include "nginx-ingress.name" . }}
         imagePullPolicy: "{{ .Values.controller.image.pullPolicy }}"
@@ -62,7 +80,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        volumeMounts:
+          - name: wallarm
+            mountPath: /etc/wallarm
         args:
+          - -wallarm-tarantool-service={{ .Release.Namespace }}/{{ template "kubernetes-ingress.wallarmTarantoolName" . }}
           - -nginx-plus={{ .Values.controller.nginxplus }}
           - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
 {{- if .Values.controller.defaultTLS.secret }}

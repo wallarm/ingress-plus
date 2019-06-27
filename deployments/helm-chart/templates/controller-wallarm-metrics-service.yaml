@@ -1,0 +1,37 @@
+{{- if and .Values.controller.wallarm.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.controller.wallarm.metrics.service.annotations }}
+  annotations:
+{{ toYaml .Values.controller.wallarm.metrics.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ default (include "nginx-ingress.name" .) .Values.controller.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}-wallarm-metrics
+spec:
+{{- if .Values.controller.wallarm.metrics.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.controller.wallarm.metrics.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.controller.wallarm.metrics.service.loadBalancerIP }}
+  loadBalancerIP: "{{ .Values.controller.wallarm.metrics.service.loadBalancerIP }}"
+{{- end }}
+{{- if .Values.controller.wallarm.metrics.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml .Values.controller.wallarm.metrics.service.loadBalancerSourceRanges | indent 4 }}
+{{- end }}
+  ports:
+    - name: metrics
+      port: {{ .Values.controller.wallarm.metrics.service.servicePort }}
+      targetPort: metrics
+  selector:
+    app: {{ default (include "nginx-ingress.name" .) .Values.controller.name }}
+    component: "{{ default (include "nginx-ingress.name" .) .Values.controller.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.controller.wallarm.metrics.service.type }}"
+{{- end }}
