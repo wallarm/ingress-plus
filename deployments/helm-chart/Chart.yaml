@@ -1,6 +1,6 @@
 name: wallarm-ingress-plus
-version: 2.0.0
-appVersion: 1.5.1-wallarm-r1
+version: 2.0.1
+appVersion: 1.5.4-wallarm-r1
 description: Wallarm Ingress Controller for NGINX Plus
 icon: https://wallarm.com/assets/images/logo.svg
 sources:

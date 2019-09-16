@@ -2,7 +2,7 @@ FROM debian:stretch-slim
 
 LABEL maintainer="Wallarm Inc. <support@wallarm.com>"
 
-ENV NGINX_PLUS_VERSION 18-1~stretch
+ENV NGINX_PLUS_VERSION 18-2~stretch
 ARG IC_VERSION
 ENV WALLARM_MODULE_VERSION 18+2.12.1-3~stretch
 

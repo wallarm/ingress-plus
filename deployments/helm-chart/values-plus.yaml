@@ -2,7 +2,7 @@ controller:
   nginxplus: true
   image:
     repository: nginx-plus-ingress
-    tag: "1.5.1-wallarm-r1"
+    tag: "1.5.4-wallarm-r1"
     pullPolicy: IfNotPresent
   wallarm:
     enabled: true
