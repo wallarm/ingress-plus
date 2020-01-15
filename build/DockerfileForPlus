@@ -2,9 +2,9 @@ FROM debian:stretch-slim
 
 LABEL maintainer="Wallarm Inc. <support@wallarm.com>"
 
-ENV NGINX_PLUS_VERSION 19-1~stretch
+ENV NGINX_PLUS_VERSION 20-1~stretch
 ARG IC_VERSION
-ENV WALLARM_MODULE_VERSION 19+2.12.7-1~stretch
+ENV WALLARM_MODULE_VERSION 20+2.14.0-1~stretch
 
 # Download certificate and key from the customer portal (https://cs.nginx.com)
 # and copy to the build context
@@ -69,7 +69,7 @@ RUN set -x \
   && echo "Acquire::https::plus-pkgs.nginx.com::SslCert     \"/etc/ssl/nginx/nginx-repo.crt\";" >> /etc/apt/apt.conf.d/90nginx \
   && echo "Acquire::https::plus-pkgs.nginx.com::SslKey      \"/etc/ssl/nginx/nginx-repo.key\";" >> /etc/apt/apt.conf.d/90nginx \
   && echo "Acquire::https::plus-pkgs.nginx.com::User-Agent  \"k8s-ic-$IC_VERSION-apt\";" >> /etc/apt/apt.conf.d/90nginx \
-  && printf "deb http://repo.wallarm.com/debian/wallarm-node stretch/\n" > /etc/apt/sources.list.d/wallarm.list \
+  && printf "deb http://repo.wallarm.com/debian/wallarm-node stretch/2.14/\n" > /etc/apt/sources.list.d/wallarm.list \
   && printf "deb https://plus-pkgs.nginx.com/debian stretch nginx-plus\n" > /etc/apt/sources.list.d/nginx-plus.list \
   && apt-get update && apt-get install -y --no-install-recommends nginx-plus=${NGINX_PLUS_VERSION} \
       nginx-plus-module-wallarm=${WALLARM_MODULE_VERSION} wallarm-node \
